@@ -1,0 +1,473 @@
+USE [GatePass]
+GO
+/****** Object:  StoredProcedure [dbo].[Proc_EmailCreateGatePass]    Script Date: 12/3/2018 3:25:44 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+/*
+ Created By   : swati
+ Created Date : 25th, Sep 2017
+ Description  : Reassign GatePass to new Requestor
+*/
+
+--USE GATEPASS
+--- EXEC [Proc_EmailCreateGatePass] 159 ,140210,160713
+
+ALTER PROCEDURE [dbo].[Proc_EmailCreateGatePass]
+@GatePassRequestID BIGINT,
+@EmplID BIGINT,
+@ApproverEmplID  NVARCHAR(max)
+
+AS
+BEGIN
+ 
+ 
+Begin TRY
+	SET NOCOUNT OFF;                     
+	BEGIN TRANSACTION 
+	SET XACT_ABORT OFF
+
+   DECLARE 
+          @AppPath                             NVARCHAR(500),
+          @DefaultMailSendTo                   NVARCHAR(4000),
+		  @ProfilerName             VARCHAR(2000),
+		  @TOMAIL                   NVARCHAR(500)='',
+          @CCMAIL                   NVARCHAR(500)='',
+		  @SendEmail           BIT =1,
+		  @mailCss      VARCHAR(MAX),
+		  @mailSubject  VARCHAR(2000),
+		  @DefaultImagePath nvarchar(2000),
+
+		  @ManagerName varchar(500)=null,
+
+
+           @Body              VARCHAR(MAX), 
+           @BodyApprovalDetails VARCHAR(MAX),
+		   @BodyApprovalDetailsMain VARCHAR(MAX)='',
+		  
+		   @BodyItemDetails VARCHAR(MAX),
+		   @ItemDetailsRows VARCHAR(MAX)='',
+           @EmailSubject      NVARCHAR(500), 
+           @EmailContent      NVARCHAR(MAX)=null,
+		   @EmailMessageID    INT,
+
+		   @TotalCount        INT,
+           @Counter           INT,
+
+		   --Requestor Details
+		   @RequestorName     NVARCHAR(500),
+		   @RequestorEmpID    NVARCHAR(Max),
+		   @ExpectedReturnDate NVARCHAR(50),
+		   @RaisedDate        NVARCHAR(50),
+		   @RaisedTime        NVARCHAR(50),
+		   @ReqVertical       NVARCHAR(50),
+		   @ReqMobile         NVARCHAR(15),
+		   @ReqEmailID        NVARCHAR(1000),
+		   @RecipientEmailID  NVARCHAR(1000),
+		   @SecurityEmailID   NVARCHAR(1000),
+		   @FromLocation      NVARCHAR(1000),       
+		   @ToLocation        NVARCHAR(1000),
+		   @VendorComp        NVARCHAR(500),
+		   @RecipientName     NVARCHAR(500),
+		   @DispatchType      NVARCHAR(500),
+		   @DispatchReason    NVARCHAR(1000),
+
+		   @Comment           NVARCHAR(500),
+
+		   --Item Details
+		   @SrNo              BIGINT,
+		   @ItemType          NVARCHAR(500),
+		   @ItemName          NVARCHAR(500),
+		   @Quantity           BIGINT,
+		   @DescriptionOfGoods NVARCHAR(2000),
+		   @FarType            NVARCHAR(50),
+		   @AssetTag           NVARCHAR(500),
+		   @FARCategory        NVARCHAR(2000),
+		   @FARSubCategory     NVARCHAR(2000),
+
+		   ----Approver 
+		 --  @ApproverEmplID     NVARCHAR(100),
+		   @ApproverName       NVARCHAR(200),
+		   @ActionDate         NVARCHAR(100),
+		   @Level              NVARCHAR(50),
+		   @Status             NVARCHAR(50),
+		   @ApproverComments   NVARCHAR(500)
+		  --@EmailSubjectA      NVARCHAR(500), 
+    --       @EmailContentA      VARCHAR(MAX),
+		  -- @EmailMessageIDA   INT
+
+	DECLARE @ApprovalRows VARCHAR(MAX)='';
+
+	set @ManagerName =(select top 1 EmployeeName  from Vw_PS_Z_ECOM_VW (nolock) where emplid=@ApproverEmplID)
+
+     SELECT TOP 1 @AppPath = ApplicationPath,@ProfilerName=SqlProfilerName  ,@DefaultMailSendTo=DefaultMailSendTo,@SendEmail=SendEmail,@DefaultImagePath=DefaultImagePath
+      FROM   TM_ApplicationConfig (nolock)
+      WHERE  ApplicationID = 1
+
+      SELECT @EmailMessageID = EmailMessageID ,@EmailContent=EmailContent ,@mailSubject = EmailSubject  +' (GP #' + CONVERT(NVARCHAR(200),@GatePassRequestID) +')' 
+	 FROM TM_EmailMessage (nolock) where EmailMessageID=1-- EmailTitle = 'OLRTNoCases'
+
+	 --SELECT @EmailMessageIDA = EmailMessageID ,@EmailContentA=EmailContent ,@EmailSubjectA = EmailSubject  +' (GP #' + CONVERT(NVARCHAR(200),@GatePassRequestID) +')' 
+	 --FROM TM_EmailMessage where EmailMessageID=2
+
+	 
+	 print @DefaultImagePath
+	
+ 
+     SELECT DISTINCT GPR.GatePassRequestID,RD.RequestorEmplId,VW.EmployeeName 'RequestorEmpName',ISNULL(VW.Email_Addr2,'-') 'EmailID',ISNULL(RD.MobNum,'-') MobNum,
+	 DD.FromLocation,DD.ToLocation,PV.ParameterValue 'DispatchType',
+	 PVDispReason.ParameterValue 'DispatchReason',ISNULL(CONVERT(VARCHAR(20),DD.ExpectedReturnDate,101),'') 'ExpectedReturnDate', 
+	 ISNULL(DD.CompanyName,'-') CompanyName,
+	 --ISNULL(DD.VendorName,'-') VendorName,ISNULL(DD.VandorAddress,'-') VandorAddress,ISNULL(DD.ContactNumber,'-') ContactNumber,
+	-- ISNULL(DD.Email,'-') Email ,
+	 ISNULL(VW.Vertical,'-') 'RequestorVertical',
+	 ISNULL(DD.Vartical,'-') 'RecepientVertical',
+	 ISNULL(DD.RecipientEmplId,0) 'RecepientEmpID',VWRecpt.EmployeeName 'RecepientEmpName',ISNULL(DD.Email,'-') AS 'RecepientEmailID',
+	 CONVERT (VARCHAR(30),GPR.RecCreatedDate,101) AS 'RaisedDate'  , 
+	 REPLACE(REPLACE(RIGHT('0'+LTRIM(RIGHT(CONVERT(VARCHAR,GETDATE(),100),7)),7),'AM',' AM'),'PM',' PM') 'Time',
+	 ISNULL(SM.Email,'-') 'SecurityEmail'
+
+	 INTO #TempRequestorDetails
+
+	 FROM TD_GatePassRequest GPR WITH(NOLOCK) INNER JOIN 
+	 TD_RequestorDetails RD WITH(NOLOCK) ON GPR.GatePassRequestID=RD.GatePassRequestID
+	 INNER JOIN TD_DispatchDetails DD WITH(NOLOCK)
+	 ON RD.GatePassRequestID=DD.GatePassRequestID 
+	 INNER JOIN TD_GatePassWorkflow GWF WITH(NOLOCK) ON GWF.GatePassRequestID=RD.GatePassRequestID ----
+	 INNER JOIN Vw_PS_Z_ECOM_VW (nolock) VW ON 
+	 RD.RequestorEmplId=VW.EMPLID
+	 LEFT JOIN Vw_PS_Z_ECOM_VW VWRecpt (nolock) ON DD.RecipientEmplId=VWRecpt.EMPLID
+	 INNER JOIN TM_ParameterValue PV WITH(NOLOCK)  ON PV.ParameterValueID=DD.DispatchTypeID
+	 INNER JOIN TM_ParameterValue PVDispReason WITH(NOLOCK) ON PVDispReason.ParameterValueID=DD.ReasonForDispatchID
+	 LEFT JOIN TD_SecurityMapping SM WITH(NOLOCK) ON LTRIM(RTRIM(SM.Location))=LTRIM(RTRIM(DD.ToLocation)) AND LTRIM(RTRIM(SM.INVENTORY_ORG))=LTRIM(RTRIM(DD.ToInvOrg))
+	 WHERE GPR.RecDeletedDate IS NULL AND GPR.RecDeletedBy IS NULL
+	 AND RD.ToDate IS NULL AND RD.RecDeletedDate IS NULL AND RD.RecDeletedBy IS NULL
+	 AND DD.ToDate IS NULL AND DD.RecDeletedDate IS NULL AND DD.RecDeletedBy IS NULL
+	 AND GWF.ToDate IS NULL AND GWF.RecDeletedDate IS NULL AND GWF.RecDeletedBy IS NULL
+	 AND RD.GatePassRequestID=@GatePassRequestID
+
+---------------*********************************************************************************************************************************************---------------------
+
+
+---Brief description of goods.
+
+ SELECT  ROW_NUMBER() OVER(ORDER BY GatePassItemDescId) AS SrNo,
+ CASE WHEN FarTypeId=6 THEN 'Non FAR Goods' ELSE 'FAR Goods' END AS 'FarType',CASE WHEN ItemType=1 THEN 'IT' ELSE 'Non IT' END AS ItemType
+ ,ISNULL(ItemName,'-') ItemName,ISNULL(Quantity,0) Quantity
+ --,ISNULL(Make,'-') Make,ISNULL(Model,'-') Model,ISNULL(SerialNumber,'-') SerialNumber,
+ ,ISNULL(DescriptionOfGoods,'-') DescriptionOfGoods,ISNULL(AssetTag,'-') AS 'AssetTag',ISNULL(FarCategory,'-') FarCategory,ISNULL(FarSubCategory,'-') FarSubCategory
+
+ INTO #TempItemDetails
+
+ FROM TD_GatePassItemDesc   WITH(NOLOCK) WHERE GatePassRequestID=@GatePassRequestID AND ToDate  IS NULL AND RecDeletedDate IS NULL AND RecDeletedBy IS NULL 
+
+
+ ---------------*********************************************************************************************************************************************---------------------
+
+
+ ---Approval Details.
+
+select '1' AS SrNo,cast(D.ApproverEmplID as varchar(100)) AS ApproverID,v.EmployeeName as ApproverName,
+'-'   'ActionDateTime','L1'  'Level','-' as Comment ,'Pending' as 'Status' INTO  #TempApprovalDetails
+ FROM TD_DispatchDetails D WITH(NOLOCK)  inner join  Vw_PS_Z_ECOM_VW v ON D.ApproverEmplID=v.EMPLID 
+ WHERE D.GatePassRequestID=@GatePassRequestID     AND D.RecDeletedDate IS NULL AND D.ToDAte IS NULL 
+	
+INSERT	INTO  #TempApprovalDetails
+select '2','Facility-'+D.FromLocation,'Facility-'+D.FromLocation,'-'   'ActionDateTime','L3' ,'-' as Comment ,'Pending' as 'Status'
+ FROM TD_DispatchDetails D WITH(NOLOCK)  WHERE D.GatePassRequestID=@GatePassRequestID     AND D.RecDeletedDate IS NULL AND D.ToDAte IS NULL 
+	
+
+	INSERT	INTO  #TempApprovalDetails
+select '3','Security-'+D.FromLocation,'Security-'+D.FromLocation,'-'   'ActionDateTime','L3' ,'-' as Comment ,'Pending' as 'Status'
+ FROM TD_DispatchDetails D WITH(NOLOCK)  WHERE D.GatePassRequestID=@GatePassRequestID     AND D.RecDeletedDate IS NULL AND D.ToDAte IS NULL 
+	
+
+
+
+
+ SELECT @RequestorName =RequestorEmpName,@ExpectedReturnDate =ExpectedReturnDate,@RaisedDate=RaisedDate,@RaisedTime=[Time],@ReqVertical =RequestorVertical,
+		@ReqMobile=MobNum,@ReqEmailID = EmailID ,@FromLocation = FromLocation,@ToLocation = ToLocation,@VendorComp  =  CompanyName,
+		@RecipientEmailID=RecepientEmailID,@RecipientName =RecepientEmpName,@DispatchType  =DispatchType,@DispatchReason=DispatchReason,@SecurityEmailID=SecurityEmail,--, @Comment= Comment
+		@RequestorEmpID=RequestorEmplId
+
+		FROM #TempRequestorDetails
+
+		
+
+ DECLARE @RecEmailID NVARCHAR(1000)
+ SELECT @RecEmailID=COALESCE(@RecipientEmailID,'') + ';'  
+
+
+ select * from #TempRequestorDetails
+ select * from #TempItemDetails
+ select * from #TempApprovalDetails
+
+
+
+
+ SET  @Body=''
+ --SET  @EmailContent=''
+ SELECT @TotalCount=COUNT(SrNo) FROM #TempItemDetails
+ SET @Counter=1
+ --SELECT @TotalCount 'Item Count'
+
+					 
+					  SET @EmailContent =   REPLACE(@EmailContent,'[!--ApplicationPath--]',isnull(@AppPath,''))
+
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--ImgSrc--]',isnull(@DefaultImagePath,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--ManagerName--]',isnull(@ManagerName,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--RequestorName--]',isnull(@RequestorName,''))
+
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--RequestorEmpID--]',isnull(@RequestorEmpID,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--GatePassNo--]',isnull(@GatePassRequestID,''))
+					 
+					 
+  			
+
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--ExpectedReturnDate--]',isnull(@ExpectedReturnDate,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--GatePassReqNo--]',isnull(@GatePassRequestID,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--GatePassRaisedDt--]',isnull(@RaisedDate,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--GatePassRaisedTime--]',isnull(@RaisedTime,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--OldRequestorName--]',isnull(@RequestorName,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--ManagerName--]',isnull(@ManagerName,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--DepVertical--]',isnull(@ReqVertical,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--EmpMobile--]',isnull(@ReqMobile,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--EmailID--]',isnull(@ReqEmailID,''))
+					
+
+
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--FromLocation--]',isnull(@FromLocation,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--ToLocation--]',isnull(@ToLocation,''))
+					-- SET @EmailContent =   REPLACE(@EmailContent,'[!--VendorCompanyName--]',isnull(@VendorComp,''))
+					SET @EmailContent =   REPLACE(@EmailContent,'[!--VendorCompanyName--]',COALESCE(NULLIF(@VendorComp,''), 'NA'))
+					
+
+			--		   print '@EmailContent first'
+			--print @RecipientName
+			--print @DispatchType
+
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--RecipientName--]',isnull(@RecipientName,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--DispatchType--]',isnull(@DispatchType,''))
+					
+					  --print '@EmailContent second'
+					  --print @EmailContent
+
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--ExpectedReturnDate--]',isnull(@ExpectedReturnDate,''))
+					 SET @EmailContent =   REPLACE(@EmailContent,'[!--ReasonForDispatch--]',isnull(@DispatchReason,''))
+				
+				
+					 SET @Body=
+					 ' <table cellspacing="0" border="1" align="left" cellpadding="2" class="bodyFont" width="758">
+							<thead>
+							<th style="background-color:#C0C0C0">Sr. No.</th>
+							<th style="background-color:#C0C0C0">Item Type</th>
+							<th style="background-color:#C0C0C0">Item Name</th>
+							<th style="background-color:#C0C0C0">Quantity</th>
+							<th style="background-color:#C0C0C0">Description of Goods</th>
+							<th style="background-color:#C0C0C0">FAR Type</th>
+							<th style="background-color:#C0C0C0">Asset Tags</th>
+							<th style="background-color:#C0C0C0">FAR Category</th>
+							<th style="background-color:#C0C0C0">FAR Sub Category</th>
+							</thead>
+							<tbody>
+					'
+					 
+					   WHILE @Counter <= @TotalCount
+                          BEGIN
+
+								SELECT 
+								@SrNo =SrNo, @ItemType=ItemType, @ItemName=ItemName, @Quantity = Quantity,@DescriptionOfGoods=DescriptionOfGoods,
+								@FarType = FarType,  @AssetTag = AssetTag, @FARCategory = FarCategory, @FARSubCategory =FarSubCategory
+								FROM #TempItemDetails WHERE SrNo=@Counter
+
+
+						     SET @ItemDetailsRows=  @ItemDetailsRows + '<tr>' +
+												 '<td>' + CONVERT(NVARCHAR(100),@SrNo) + '</td>' + 
+												 '<td>' + @ItemType + '</td>' +    
+												 '<td>' + @ItemName + '</td>' +    
+												 '<td>' + CONVERT(NVARCHAR(100),@Quantity) + '</td>' +    
+												 '<td>' + @DescriptionOfGoods + '</td>' +    
+												 '<td>' + @FarType + '</td>' +    
+												 '<td>' + @AssetTag + '</td>' +    
+												 '<td>' + @FARCategory + '</td>' +    
+												 '<td>' + @FARSubCategory + '</td>' + 
+											 +'</tr>  '  
+						     SET @Counter=@Counter+1
+							
+						  END
+						
+						   SET @ItemDetailsRows+='</tbody></table> </br></br>'
+						   SET @BodyItemDetails=@Body + @ItemDetailsRows
+						   SET @BodyItemDetails =   REPLACE(@EmailContent,'[!--DescriptionOfGoods--]',isnull(@BodyItemDetails,''))
+						   
+						
+					PRINT @BodyItemDetails
+
+						    SET @TotalCount=0
+						  
+						    SELECT @TotalCount=COUNT(SrNo) FROM #TempApprovalDetails
+                            SET @Counter=1
+							---SELECT @TotalCount 'Approval Count'
+
+							SET @BodyApprovalDetails=' <table cellspacing="0" border="1" align="left" cellpadding="2" class="bodyFont" width="758" >
+								<thead>
+								<th style="background-color:#C0C0C0">Approver Id</th>
+								<th style="background-color:#C0C0C0">Approver Name</th>
+								<th style="background-color:#C0C0C0">Action Date /  Time</th>
+								<th style="background-color:#C0C0C0">Level</th>
+								<th style="background-color:#C0C0C0">Status</th>
+								<th style="background-color:#C0C0C0">Comment</th>
+								</thead>
+								<tbody>
+								'
+                         
+						 SELECT @ApprovalRows='';
+						-- SELECT * FROM #TempApprovalDetails
+						 print '@Counter'+cast(@Counter as varchar(50))
+						 print '@TotalCount'+cast(@TotalCount as varchar(50))
+							 WHILE @Counter <= @TotalCount
+							 BEGIN
+
+									 SELECT @ApproverEmplID=ApproverID, 
+											@ApproverName =  ApproverName  ,      
+											@ActionDate = ActionDateTime,     
+											@Level ='L '+CONVERT(varchar(10),@Counter)  ,         
+											@Status = ISNULL([Status],'-') ,        
+											@ApproverComments =ISNULL(Comment,'-') 
+											FROM #TempApprovalDetails
+											WHERE SrNo=@Counter
+									
+											Print @ApproverEmplID 
+											PRINT @ApproverName
+											PRINT @ActionDate      
+											PRINT @Level       
+											PRINT @Status
+											PRINT @ApproverComments
+
+
+								   Select @ApprovalRows=  @ApprovalRows+            '<tr>' +
+																		 			 '<td>' + cast(@ApproverEmplID as varchar(max))  + '</td>' +    
+																		 			 '<td>' + @ApproverName + '</td>' +    
+																		 			 '<td>' + cast(@ActionDate as varchar(max)) + '</td>'     
+																		 			  +'<td>' +@Level +'</td>' +    
+																		 			 +'<td>' + cast(@Status as varchar(max))  + '</td>' +    
+																		 			+'<td>' + cast(@ApproverComments as varchar(max))  + '</td>' +    
+																				 +'</tr>  '  ;
+
+           --                        PRINT @Counter
+								 
+								   SET @Counter=@Counter+1
+								 --  PRINT 'done1'
+								   
+						   END
+						    -- PRINT 'done'
+						    SET @ApprovalRows+='</tbody></table></br></br>'
+							
+						    SET @BodyApprovalDetailsMain=@BodyApprovalDetails+@ApprovalRows
+							  
+							PRINT @BodyItemDetails
+							PRINT @BodyApprovalDetails
+							PRINT @ApprovalRows
+							PRINT @BodyApprovalDetailsMain
+							
+						  SET @EmailContent =   REPLACE(@BodyItemDetails,'[!--ApprovalDetails--]',isnull(@BodyApprovalDetailsMain,''))
+						
+					
+				   
+
+    IF(@@servername = 'WIM2K8SQL1' AND @SendEmail=1) 
+				   BEGIN
+				      PRINT 'PRODUDCTION BLOCK'
+						 -- SET @EmailContent =   REPLACE(@EmailContent , '[!--style--]', @mailCss)
+						 -- SET @EmailContent =   REPLACE(@EmailContent , '[!--ReceiverEmail--]', '')
+						  SET @TOMAIL=@ReqEmailID
+						    --SET @TOMAIL=@NewRequestorEmail
+							SET @EmailContent =   REPLACE(@EmailContent,' [!--ActualReciverMail--]','')
+				   END
+			   ELSE
+			       BEGIN
+				     PRINT 'DEVELOPMENT BLOCK'
+						 --SET @EmailContent =   REPLACE(@EmailContent , '[!--style--]', @mailCss)
+						 --SET @EmailContent =   REPLACE(@EmailContent , '[!--ReceiverEmail--]', @RecEmailID)
+						 print '@ReqEmailID'
+						 print @ReqEmailID
+						 print @EmailContent
+						 SET @TOMAIL=@DefaultMailSendTo 
+						-- set @EmailContent=@EmailContent+@ReqEmailID
+						SET @EmailContent =   REPLACE(@EmailContent,' [!--ActualReciverMail--]',isnull(@ReqEmailID,''))
+						  
+					 END
+
+--- EXEC [Proc_EmailCreateGatePass] 60 ,256973,160713
+print 'emial content'
+PRINT  @EmailContent
+print '@ProfilerName' +@ProfilerName
+PRINT 'DEFAULT EMAIL ID - ' + @TOMAIL
+PRINT 'ACTULAL RECEIVER EMAIL ID - ' +@ReqEmailID
+ print 'CC -'+@CCMAIL
+ print '@mailSubject'+@mailSubject
+
+    EXEC msdb.dbo.sp_send_dbmail        
+		 @profile_name = @ProfilerName,        
+		 @recipients = @TOMAIL,
+		 @blind_copy_recipients ='',       
+		 @copy_recipients = @CCMAIL,     
+		 @body_format = 'HTML',        
+		 @body  = @EmailContent,        
+		 @subject =@mailSubject 
+
+		 INSERT INTO TX_TriggeredMail(EmailMessageID,EmailSubject,EmailContent,RecepientTo,RecepientCC,RecepientBCC,RecCreatedDate)
+		VALUES  (@EmailMessageID,@mailSubject,@EmailContent,@TOMAIL,@CCMAIL,'',GETDATE()) 
+ 
+ -- EXEC [Proc_EmailCreateGatePass] 69 ,114273,156036
+ ---?**************************************************For approver***************************************************************
+  
+  
+
+
+
+   IF OBJECT_ID('tempdb..#TempRequestorDetails') IS NOT NULL                       
+	  BEGIN                                        
+		 DROP TABLE #TempRequestorDetails                                        
+	  END
+
+   IF OBJECT_ID('tempdb..#TempItemDetails') IS NOT NULL                       
+	  BEGIN                                        
+		 DROP TABLE #TempItemDetails                                        
+	  END
+
+  IF OBJECT_ID('tempdb..#TempApprovalDetails') IS NOT NULL                       
+	  BEGIN                                        
+		 DROP TABLE #TempApprovalDetails                                        
+	  END
+
+
+	  
+
+COMMIT TRANSACTION
+
+End TRY
+Begin Catch
+   IF @@TRANCOUNT > 0            
+   BEGIN          
+	ROLLBACK TRANSACTION          
+   END          
+   DECLARE @ErrMsg NVARCHAR(max)     
+   SET @ErrMsg = '[Proc_EmailCreateGatePass]:'  
+       + 'ErrorNumber :' + CONVERT(VARCHAR(20), ERROR_NUMBER(), 0) + ' '  
+       + 'MSG :'+ CONVERT(VARCHAR(100), ERROR_MESSAGE(), 0) + ' '  
+       + 'STATE:' +  CONVERT(VARCHAR(20), ERROR_STATE(), 0) + ' '  
+       + 'ErrLine:' + Cast(ERROR_LINE() As Varchar(10))  
+  
+   INSERT INTO [dbo].[TX_ExceptionDetail]  
+      ( ExceptionDetail, StackTrace,  ExceptionOtherDetail,  RecCreatedBy,  RecCreatedDate ,RequestType)  
+   VALUES   ( 'Exception :[Proc_EmailCreateGatePass]', @ErrMsg, 'System',@Emplid, GETDATE(),'database')  
+ 
+End Catch
+END
+
+
+
