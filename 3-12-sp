@@ -1,5 +1,87 @@
 USE [GatePass]
 GO
+
+/****** Object:  View [dbo].[Vw_PS_Z_ECOM_VW]    Script Date: 12/3/2018 3:48:36 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+
+/*-- =============================================
+-- Author:		Swati
+-- Create date: 12 july 2017
+-- Description: To Get All employee from espace
+-- [Proc_MenuDetails] '204430' ,'1' 
+select * from [Vw_PS_Z_ECOM_VW]
+-- =============================================*/
+
+CREATE view [dbo].[Vw_PS_Z_ECOM_VW]
+as
+
+
+SELECT  vw.[EMPLID]
+,(vw.FIRST_NAME+' '+vw.LAST_NAME) as EmployeeName      
+      ,vw.[GRADE]
+      ,vw.[JOB_TITLE]
+      ,vw.[BIRTHDATE]      
+      ,vw.[EMPL_STATUS] 
+      ,vw.[DIVISION]
+      ,vw.[DESCR]
+      ,vw.[FIRST_NAME]
+      ,vw.[MIDDLE_NAME]
+      ,vw.[LAST_NAME]
+	,vw.[EMAIL_ADDR]
+      ,vw.[EMAIL_ADDR2]      
+      ,vw.[DEPTID]
+      ,vw.[DEPTNAME]
+      ,vw.[DEPTNAME_ABBRV]
+      ,vw.[DESCR1]
+      ,vw.[DESCR2]
+      ,vw.[DESCR3]
+      ,vw.[REPORTS_TO]
+      ,vw.[POSITION_NBR]
+      ,vw.[ESTABID]   , 
+	  PHONE1 as EmpPhone,Z_IP_PHONE as 	IPPhone 
+	  ,PHONE
+      ,isnull(OD.VERTICAL_INTERNAL,'') as Vertical
+	     ,isnull(OD.VERTICAL_INTERNAL_DESC,'') as Vertical_Desc
+      ,isnull(OD.Horizontal_internal,'') as Horizontal
+	  ,isnull(vw.descr1,'') as Location
+	  ,vw.SUPERVISOR_ID
+    -- ,(select top 1 SUPERVISOR_ID from ESPACE.dbo.[Z_PS_CURR_DEPT] where emplid=vw.emplid )
+	-- ,D.SUPERVISOR_ID  
+	-- ,(v1.FIRST_NAME+' '+v1.LAST_NAME) as SUPERVISOR_NAME  
+
+,CONVERT(VARCHAR(10),vw.HIRE_DT,103) as DOJ
+
+  FROM [Espace].[dbo].[PS_Z_ECOM_VW](nolock) vw   
+left outer join ESPACE.dbo.WNS_PROJECT_ORGANIZATION_DTL(nolock) OD on vw.DEPTID=OD.PROJ_NUMBER
+--left outer join ESPACE.dbo.[Z_PS_CURR_DEPT] D on vw.emplid=D.emplid
+--left outer join ESPACE.dbo.[PS_Z_ECOM_VW] v1 on v1.emplid=D.SUPERVISOR_ID
+
+
+-- select * from ESPACE.dbo.[Z_PS_CURR_DEPT] where emplid=195836
+-- select SUPERVISOR_ID,* from ESPACE.dbo.[PS_Z_ECOM_VW] where emplid=160713
+
+
+
+
+
+GO
+
+
+$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$**************************************************************************************
+
+
+
+USE [GatePass]
+GO
 /****** Object:  StoredProcedure [dbo].[Proc_EmailCreateGatePass]    Script Date: 12/3/2018 3:25:44 PM ******/
 SET ANSI_NULLS ON
 GO
@@ -468,6 +550,46 @@ Begin Catch
  
 End Catch
 END
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
