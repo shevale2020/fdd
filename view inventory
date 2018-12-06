@@ -1,0 +1,1876 @@
+var deskChunkCount;
+var deskChunk;
+var dsktopCount, laptopCount, serverCount, telecomCount, networkCount
+//Start - Infra Inventory P2 Changes
+, infraCount;
+//End - Infra Inventory P2 Changes
+
+var GRNNumber;
+$(document).ready(function () {
+    //$('#liLap').addClass('active');
+    //$('#Tabdesktop').addClass('active');
+    //Tabdesktop
+    SearchText();
+    GetLocation();
+    GetAssetType('Asset Type');
+
+    //var dateE = new Date();
+    //dateE.setDate(dateE.getDate() + 1);
+    //var FromEndDate = new Date();
+    //var ToEndDate = new Date();
+
+    $('.calendar').datepicker({
+        autoclose: true
+    });
+
+});
+
+var InvType = 'Desktop';
+function SearchText() {
+    $('input.autosuggest').each(function (i, control) {
+        control = $(control);
+
+        $("input.autosuggest").autocomplete({
+            source: function (request, response) {
+                var poObj = { PrefixText: request.term };
+                var params = $.extend({}, doAjax_params_default);
+                params['url'] = '/Inventory/FetchPONumber';
+                params['requestType'] = "POST";
+                params['contentType'] = "application/json";
+                params['data'] = poObj;
+                params['successCallbackFunction'] = function (data) {
+                    if (data.length > 0) {
+                        //response(data);
+
+                        response($.map(data, function (item) {
+                            return {
+                                label: item.Name,//item.Value + ' (' + item.Name + ')',
+                                value: item.Value,
+                                name: item.Name
+                            }
+                        }))
+                    }
+                },
+                doAjax(params);
+            },
+            focus: function (event, ui) {
+                if (ui.item.value == 'Please enter valid PO Number') {
+                    $("#hdnPonumber").val("0");
+
+                    return false;
+                }
+            },
+            minLength: 1,
+            select: function (event, ui) {
+                var f = "Please enter valid PO Number";
+                if (ui.item.value.trim() == f.trim()) {
+                    $("#txtPonumber").val('');
+                    $("#hdnPonumber").val("0");
+                    $("#drpgrnnumber option").remove();
+                    $("#drpgrnnumber").val(null).trigger("change");//Clear selected Value
+                    return false;
+                }
+                else {
+                    $("#drpgrnnumber option").remove();
+                    $("#drpgrnnumber").val(null).trigger("change");//Clear selected Value
+                    $("#hdnPonumber").val('0');
+                    $("#hdnPonumber").val(ui.item.value);
+                    $("#txtPonumber").val(ui.item.name);//Splited[1].trim() + ' ' + Splited[2].trim()
+                    //IsTextChanged();
+                    return false;
+                }
+            },
+
+            search: function () { $(this).addClass('working'); },
+            open: function () { $(this).removeClass('working'); },
+            autoFocus: true
+        });
+    });
+}
+
+function GetLocation() {
+
+    //var Flag = { Flag: 'L' };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/GetLocation';
+    // params['data'] = Flag;
+    params['contentType'] = "application/json";
+    params['successCallbackFunction'] = GetLocationSuccess;
+    doAjax(params);
+}
+
+function GetLocationSuccess(msg) {
+    roleData = msg;
+    $.each(msg, function (index, item) {
+        $("#lstLocation").append(
+        $('<option></option>').val(item.Location).html(item.Location));
+    });
+}
+
+function GetAssetType(ParameterDescr) {
+
+    var searchText = { ParameterDescr: ParameterDescr };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/GetParameterdesc';
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    if (ParameterDescr == 'Asset Type')
+        params['successCallbackFunction'] = GetAssetTypeSuccesses;
+    if (ParameterDescr == 'MakeDesktop')
+        params['successCallbackFunction'] = GetMakeDesktopSuccesses;
+    if (ParameterDescr == 'AllocationType')
+        params['successCallbackFunction'] = GetAllocationTypeSuccesses;
+    if (ParameterDescr == 'SharedDedicatedDesktop')
+        params['successCallbackFunction'] = GetSharedDedicatedDesktopSuccesses;
+    if (ParameterDescr == 'stockstatus')
+        params['successCallbackFunction'] = GetstockstatusSuccesses;
+
+    if (ParameterDescr == 'MakeNetwork')
+        params['successCallbackFunction'] = GetMakeNetworkSuccesses;
+    if (ParameterDescr == 'SharedDedicatedNetwork')
+        params['successCallbackFunction'] = GetSharedDedicatedNetworkSuccesses;
+    if (ParameterDescr == 'StockstatusNetwork')
+        params['successCallbackFunction'] = GetStockstatusNetworkSuccesses;
+    if (ParameterDescr == 'DeviceSupport')
+        params['successCallbackFunction'] = GetDeviceSupportSuccesses;
+    if (ParameterDescr == 'Endoflifeofdevice')
+        params['successCallbackFunction'] = GetEndoflifeofdeviceSuccesses;
+
+    if (ParameterDescr == 'StatusServer')
+        params['successCallbackFunction'] = GetStatusServerSuccesses;
+
+    if (ParameterDescr == 'MakeTelecom')
+        params['successCallbackFunction'] = GetMakeTelecomSuccesses;
+    if (ParameterDescr == 'ModelTelecom')
+        params['successCallbackFunction'] = GetModelTelecomSuccesses;
+    if (ParameterDescr == 'StockStatusTelecom')
+        params['successCallbackFunction'] = GetStockStatusTelecomSuccesses;
+    if (ParameterDescr == 'Devicelife')
+        params['successCallbackFunction'] = GetDevicelifeSuccesses;
+
+    //START For Network 
+    if (ParameterDescr == 'DeviceSupportNetwork')
+        params['successCallbackFunction'] = GetDeviceSupportSuccesses;
+    if (ParameterDescr == 'EndoflifeofdeviceNetwork')
+        params['successCallbackFunction'] = GetEndoflifeofdeviceSuccesses;
+
+    if (ParameterDescr == 'DevicelifeTelecom')
+        params['successCallbackFunction'] = GetDevicelifeSuccesses;
+
+    //END For Network
+
+    //Start - Infra Inventory P2 Changes
+    if (ParameterDescr == 'MakeInfra')
+        params['successCallbackFunction'] = GetMakeInfraSuccesses;
+
+    if (ParameterDescr == 'ModelInfra')
+        params['successCallbackFunction'] = GetModelInfraSuccesses;
+
+    if (ParameterDescr == 'HostNameInfra')
+        params['successCallbackFunction'] = GetHostNameInfraSuccesses;
+
+    if (ParameterDescr == 'StockStatusInfra')
+        params['successCallbackFunction'] = GetStockStatusInfraSuccesses;
+
+    if (ParameterDescr == 'DeviceSupportInfra')
+        params['successCallbackFunction'] = GetDeviceSupportInfraSuccesses;
+
+    if (ParameterDescr == 'SharedDedicatedInfra')
+        params['successCallbackFunction'] = GetSharedDedicatedInfraSuccesses;
+
+    if (ParameterDescr == 'InventoryAssetTypeInfra')
+        params['successCallbackFunction'] = GetInventoryAssetTypeInfraSuccesses;
+    //End - Infra Inventory P2 Changes
+
+    doAjax(params);
+}
+
+function Search() {
+
+    var InvType = 'Desktop';
+
+    // if ($.trim($("#hdnPonumber").val()) == '0' && $("#txtSerialNumber").val() == '' && $("#txtTagNumber").val() == '' && $('#lstLocation').val() == '' && $("#lstAssetType").val() == '') {
+    if (($.trim($("#hdnPonumber").val()) == '0' || $.trim($("#hdnPonumber").val()) == '') && $("#txtSerialNumber").val() == '' && $("#txtTagNumber").val() == '' && $("#lstLocation option:selected").index() <= 0 && $("#lstAssetType option:selected").index() <= 0) {
+        toastrStateConfig();
+        toastr['error']('Please enter atleast one field to search');
+        return false;
+    }
+
+    //$('#tbldesktopdetails').hide();
+    //$('#tbllaptopdetails').hide();
+    //$('#tblNetworkdetails').hide();
+    //$('#tblServerdetails').hide();
+    //$('#tblTelecomdetails').hide();
+    //$('#tblInfradetails').hide();
+    $('#divShowGrids').show();
+
+    if ($("#lstSelectAction option:selected").index() == 0) // view
+    {
+        $('#ImgLoadingm').show();
+        //  $('#btnSearch').hide();
+
+        $('#toolbarDesktop').hide();
+        $('#toolbarLaptop').hide();
+        $('#toolbarNetwork').hide();
+        $('#toolbarServer').hide();
+        $('#toolbarTelecom').hide();
+        $('#toolbarInfra').hide();
+
+
+        tabClick('Desktop', 0);
+        tabClick('Laptop', 0);
+        tabClick('Network', 0);
+        tabClick('Server', 0);
+        tabClick('Telecom', 0);
+        tabClick('Infra', 0);
+
+        $('#ImgLoadingm').hide();
+
+    }
+    else { // for download
+
+        $('#toolbarDesktop').show();
+        $('#toolbarLaptop').show();
+        $('#toolbarNetwork').show();
+        $('#toolbarServer').show();
+        $('#toolbarTelecom').show();
+        $('#toolbarInfra').show();
+
+
+        $('#tbldesktopdetails').hide().bootstrapTable('destroy');
+        $('#tbllaptopdetails').hide().bootstrapTable('destroy');
+        $('#tblNetworkdetails').hide().bootstrapTable('destroy');
+        $('#tblServerdetails').hide().bootstrapTable('destroy');
+        $('#tblTelecomdetails').hide().bootstrapTable('destroy');
+        $('#tblInfradetails').hide().bootstrapTable('destroy');
+
+
+        $('#ImgLoadingliDesk').hide();
+        $('#ImgLoadingliLap').hide();
+        $('#ImgLoadingliNw').hide();
+        $('#ImgLoadingliSer').hide();
+        $('#ImgLoadingliTel').hide();
+        $('#ImgLoadingliInfra').hide();
+
+
+    }
+}
+
+var data2;
+function tabClick(InvTypes, chunk) {
+    //alert(InvTypes + ' InvType ');
+    InvType = InvTypes;
+    var imagelaoder = $('#ImgLoadingm');
+    switch (InvType) {
+        case "Desktop":
+            {
+                imagelaoder = $('#ImgLoadingliDesk');
+                $('#tbldesktopdetails').hide().bootstrapTable('destroy');
+                break;
+            }
+        case "Laptop":
+            {
+                imagelaoder = $('#ImgLoadingliLap');
+                $('#tbllaptopdetails').hide().bootstrapTable('destroy');
+                break;
+            }
+        case "Network":
+            {
+                imagelaoder = $('#ImgLoadingliNw');
+                $('#tblNetworkdetails').hide().bootstrapTable('destroy');
+                break;
+            }
+        case "Server":
+            {
+                imagelaoder = $('#ImgLoadingliSer');
+                $('#tblServerdetails').hide().bootstrapTable('destroy');
+                break;
+            }
+        case "Telecom":
+            {
+                imagelaoder = $('#ImgLoadingliTel');
+                $('#tblTelecomdetails').hide().bootstrapTable('destroy');
+                break;
+            }
+        case "Infra":
+            {
+                imagelaoder = $('#ImgLoadingliInfra');
+                $('#tblInfradetails').hide().bootstrapTable('destroy');
+                break;
+            }
+    };
+
+    //  alert(InvType);
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: InvType, SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View', PageNumber: 1, PageSize: 10 };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ViewInventory?chunk=' + chunk;
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['beforeSendCallbackFunction'] = function beforeSendcallbackfun() { $(imagelaoder).show(); };
+    params['successCallbackFunction'] = SuccesGetInventory;
+    // debugger;
+    doAjax(params);
+
+}
+
+function clearFields() {
+    $("#hdnPonumber").val('');
+    $("#txtSerialNumber").val('');
+    $("#txtTagNumber").val('');
+
+    var ControlType = $("#lstLocation");
+    ControlType.val($("#lstLocation option:first").val()).trigger('change.select2');
+
+    var ControlType = $("#lstAssetType");
+    ControlType.val($("#lstAssetType option:first").val()).trigger('change.select2');
+}
+
+function SuccesGetInventory(data) {
+
+    //if (InvType == 'Desktop') {
+
+    var data = jQuery.parseJSON(data);
+
+    if (data.strSeq == '1,') {
+
+
+        if (data.dtInventoryDesktopDetailEntity != null) {
+            if (deskChunk != null && deskChunk != undefined)
+                deskChunk = $.merge(deskChunk, data.dtInventoryDesktopDetailEntity);
+            else
+                deskChunk = data.dtInventoryDesktopDetailEntity;
+
+            GetInventoryDesktopChunk1(1);
+        }
+        else {
+
+            $('#ImgLoadingliDesk').hide();
+
+            $('#tbldesktopdetails').show().bootstrapTable('destroy');
+            //$('#tbldesktopdetails').bootstrapTable({
+            //    data: deskChunk,//data.dtInventoryDesktopDetailEntity,//deskChunk,
+            //    exportDataType: 'excel',
+            //    exportHiddenColumns: ["IsActive"],
+            //    exportOptions: {
+            //        ignoreColumn: [1],
+            //        "fileName": 'Desktopdetails'
+            //    }
+            //});
+        }
+
+
+    };
+
+    if (data.strSeq == '2,') {
+        $('#ImgLoadingliLap').hide();
+        $('#tbllaptopdetails').show().bootstrapTable('destroy');
+
+        $('#tbllaptopdetails').bootstrapTable({
+            data: data.dtInventoryLaptopDetailEntity,
+            exportDataType: 'excel',
+            exportHiddenColumns: ["IsActive"],
+            exportOptions: {
+                ignoreColumn: [1],
+                "fileName": 'Laptopdetails'
+            }
+        });
+
+
+
+    };
+
+    if (data.strSeq == '3,') {
+        $('#ImgLoadingliNw').hide();
+        $('#tblNetworkdetails').show().bootstrapTable('destroy');
+
+        $('#tblNetworkdetails').bootstrapTable({
+            data: data.dtInventoryNetworkDetailEntity,
+            exportDataType: 'excel',
+            exportHiddenColumns: ["IsActive"],
+            exportOptions: {
+                ignoreColumn: [1],
+                "fileName": 'Networkdetails'
+            }
+        });
+
+
+    };
+
+    if (data.strSeq == '4,') {
+        $('#ImgLoadingliSer').hide();
+        $('#tblServerdetails').show().bootstrapTable('destroy');
+
+        $('#tblServerdetails').bootstrapTable({
+            data: data.dtInventoryServerDetailEntity,
+            exportDataType: 'excel',
+            exportHiddenColumns: ["IsActive"],
+            exportOptions: {
+                ignoreColumn: [1],
+                "fileName": 'Serverdetails'
+            }
+        });
+
+    };
+
+    if (data.strSeq == '5,') {
+        $('#ImgLoadingliTel').hide();
+        $('#tblTelecomdetails').show().bootstrapTable('destroy');
+
+        $('#tblTelecomdetails').bootstrapTable({
+            data: data.dtInventoryTelecomDetailEntity,
+            exportDataType: 'excel',
+            exportHiddenColumns: ["IsActive"],
+            exportOptions: {
+                ignoreColumn: [1],
+                "fileName": 'Telecomdetails'
+            }
+        });
+
+    };
+
+    if (data.strSeq == '6,') {
+
+        //Start - Infra Inventory P2 Changes
+        $('#ImgLoadingliInfra').hide();
+        $('#tblInfradetails').show().bootstrapTable('destroy');
+        $('#tblInfradetails').bootstrapTable({
+            data: data.dtInventoryInfraDetailEntity,
+            exportDataType: 'excel',
+            exportHiddenColumns: ["IsActive"],
+            exportOptions: {
+                ignoreColumn: [1],
+                "fileName": 'Infradetails'
+            }
+        });
+
+        //if (data.dtInventoryInfraDetailEntity != null) {
+        //    if (data.dtInventoryInfraDetailEntity.length > 0) {
+        //        $('#tblInfradetails').show().bootstrapTable('destroy');
+
+        //        $('#tblInfradetails').bootstrapTable({
+        //            data: Jdata, //data.dtInventoryInfraDetailEntity,
+        //            //responseHandler: function (res) {
+        //            //    return res.table;
+        //            //},
+
+        //            exportDataType: 'excel',
+        //            exportHiddenColumns: ["IsActive"],
+        //            exportOptions: {
+        //                ignoreColumn: [1],
+        //                "fileName": 'Infradetails'
+        //            }
+        //        });
+        //    }
+        //}
+
+    };
+
+}
+
+function SuccesGetInventoryDesktopChunk1(data) {
+
+    // alert("Desk1");
+    var data = jQuery.parseJSON(data);
+
+    if (data != undefined && data.dtInventoryDesktopDetailEntity != null) {
+        deskChunk = $.merge(deskChunk, data.dtInventoryDesktopDetailEntity);
+    }
+
+    GetInventoryDesktopChunk2(2);
+
+}
+
+function SuccesGetInventoryDesktopChunk2(data) {
+
+    // alert("Desk2");
+
+    var data = jQuery.parseJSON(data);
+
+
+    if (data != undefined && data.dtInventoryDesktopDetailEntity != null) {
+        deskChunk = $.merge(deskChunk, data.dtInventoryDesktopDetailEntity);
+    }
+
+    GetInventoryDesktopChunk3(3);
+
+}
+
+function SuccesGetInventoryDesktopChunk3(data) {
+    // $('#ImgLoading').hide();
+    // alert("Sucess loading desktop");
+    var data = jQuery.parseJSON(data);
+    if (deskChunk == null && deskChunk == undefined)
+        deskChunk = deskChunk;
+    else {
+        if (data != undefined && data.dtInventoryDesktopDetailEntity != null) {
+            deskChunk = $.merge(deskChunk, data.dtInventoryDesktopDetailEntity);
+        }
+    }
+    $('#ImgLoadingliDesk').hide();
+
+    $('#tbldesktopdetails').show().bootstrapTable('destroy');
+    $('#tbldesktopdetails').bootstrapTable({
+        data: deskChunk,//data.dtInventoryDesktopDetailEntity,//deskChunk,
+        exportDataType: 'excel',
+        exportHiddenColumns: ["IsActive"],
+        exportOptions: {
+            ignoreColumn: [1],
+            "fileName": 'Desktopdetails'
+        }
+    });
+
+    deskChunk = null;
+
+}
+
+function GetInventoryDesktopChunk1(count) {
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Desktop', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View' };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ViewInventory?chunk=' + count;
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['beforeSendCallbackFunction'] = function beforeSendcallbackfun() { };
+    params['successCallbackFunction'] = SuccesGetInventoryDesktopChunk1;
+    // debugger;
+    doAjax(params);
+}
+
+function GetInventoryDesktopChunk2(count) {
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Desktop', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View' };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ViewInventory?chunk=' + count;
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['beforeSendCallbackFunction'] = function beforeSendcallbackfun() { };
+    params['successCallbackFunction'] = SuccesGetInventoryDesktopChunk2;
+    // debugger;
+    doAjax(params);
+}
+
+function GetInventoryDesktopChunk3(count) {
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Desktop', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View' };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ViewInventory?chunk=' + count;
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['beforeSendCallbackFunction'] = function beforeSendcallbackfun() { };
+    params['successCallbackFunction'] = SuccesGetInventoryDesktopChunk3;
+    // debugger;
+    doAjax(params);
+}
+
+//START Desktop Edit
+function operateFormatterDesktopEdit(value, row, index) {
+    var str = '';
+    if (row.IsAssetRetired == 'No') {
+        str = '<button type="button" class="btn btn-floating btn-primary btn-xs"  data-placement="top" data-target="#TAGModelDesktop" data-toggle="modal" data-original-title="Edit"><i class="icon wb-pencil" aria-hidden="true"></i></button>'
+    }
+    else {
+        str = ''
+    }
+    return [
+        str
+    ].join('');
+}
+
+window.operateEventsDesktopEdit = {
+    'click .btn-primary': function (e, value, row, index) {
+        $('#hdnInventoryId').val(row.InventoryID);
+        $('#hdnInventoryTypeId').val(row.InventoryTypeID);
+        $('#hdnAssetValidationStatusID').val(row.AssetValidationStatusID);
+        GetAssetType('MakeDesktop');
+        //GetAssetType('AllocationType');
+        //GetAssetType('SharedDedicatedDesktop');
+        //GetAssetType('stockstatus');
+        //GetSubMinorCategory('', 'Desktop');
+        //var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Desktop', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'Edit', InventoryID: row.InventoryID};
+        //var params = $.extend({}, doAjax_params_default);
+        //params['url'] = 'ViewInventory/ViewInventory';
+        //params['requestType'] = "POST";
+        //params['contentType'] = "application/json";
+        //params['data'] = searchText;
+        //params['successCallbackFunction'] = SuccesGetDesktopInventory;
+        //doAjax(params);
+    }
+};
+//END Desktop Edit
+
+
+//START Laptop Edit
+function operateFormatterLaptopEdit(value, row, index) {
+    var str = '';
+    if (row.IsAssetRetired == 'No') {
+        str = '<button type="button" class="btn btn-floating btn-primary btn-xs"  data-placement="top" data-target="#TAGModelLaptop" data-toggle="modal" data-original-title="Edit"><i class="icon wb-pencil" aria-hidden="true"></i></button>'
+    }
+    else {
+        str = ''
+    }
+    return [
+        str
+    ].join('');
+}
+window.operateEventsLaptopEdit = {
+    'click .btn-primary': function (e, value, row, index) {
+        $('#hdnInventoryId').val(row.InventoryID);
+        $('#hdnInventoryTypeId').val(row.InventoryTypeID);
+        $('#hdnAssetValidationStatusID').val(row.AssetValidationStatusID);
+        GetSubMinorCategory('', 'Laptop');
+        //var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Laptop', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'Edit', InventoryID: row.InventoryID };
+        //var params = $.extend({}, doAjax_params_default);
+        //params['url'] = 'ViewInventory/ViewInventory';
+        //params['requestType'] = "POST";
+        //params['contentType'] = "application/json";
+        //params['data'] = searchText;
+        //params['successCallbackFunction'] = SuccesGetLaptopInventory;
+        //doAjax(params);
+    },
+};
+//END Laptop Edit
+
+
+//START Network Edit
+function operateFormatterNetworkEdit(value, row, index) {
+    var str = '';
+    if (row.IsAssetRetired == 'No') {
+        str = '<button type="button" class="btn btn-floating btn-primary btn-xs"  data-placement="top" data-target="#TAGModelNetwork" data-toggle="modal" data-original-title="Edit"><i class="icon wb-pencil" aria-hidden="true"></i></button>'
+    }
+    else {
+        str = ''
+    }
+    return [
+        str
+    ].join('');
+}
+window.operateEventsNetworkEdit = {
+    'click .btn-primary': function (e, value, row, index) {
+        $('#hdnInventoryId').val(row.InventoryID);
+        $('#hdnInventoryTypeId').val(row.InventoryTypeID);
+        $('#hdnAssetValidationStatusID').val(row.AssetValidationStatusID);
+        GetAssetType('MakeNetwork');
+        //GetAssetType('SharedDedicatedNetwork');
+        //GetAssetType('StockstatusNetwork');
+        //GetAssetType('DeviceSupportNetwork');
+        //GetAssetType('EndoflifeofdeviceNetwork');
+        //GetSubMinorCategory('','Network');
+        //var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Network', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'Edit', InventoryID: row.InventoryID };
+        //var params = $.extend({}, doAjax_params_default);
+        //params['url'] = 'ViewInventory/ViewInventory';
+        //params['requestType'] = "POST";
+        //params['contentType'] = "application/json";
+        //params['data'] = searchText;
+        //params['successCallbackFunction'] = SuccesGetNetworkInventory;
+        //doAjax(params);
+    },
+};
+//END Network Edit
+
+
+//START Server Edit
+function operateFormatterServerEdit(value, row, index) {
+    var str = '';
+    if (row.IsAssetRetired == 'No') {
+        str = '<button type="button" class="btn btn-floating btn-primary btn-xs"  data-placement="top" data-target="#TAGModelServer" data-toggle="modal" data-original-title="Edit"><i class="icon wb-pencil" aria-hidden="true"></i></button>'
+    }
+    else {
+        str = ''
+    }
+    return [
+        str
+    ].join('');
+}
+window.operateEventsServerEdit = {
+    'click .btn-primary': function (e, value, row, index) {
+        $('#hdnInventoryId').val(row.InventoryID);
+        $('#hdnInventoryTypeId').val(row.InventoryTypeID);
+        $('#hdnAssetValidationStatusID').val(row.AssetValidationStatusID);
+        GetAssetType('StatusServer');
+        //GetSubMinorCategory('', 'Server');
+        //var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Server', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'Edit', InventoryID: row.InventoryID};
+        //var params = $.extend({}, doAjax_params_default);
+        //params['url'] = 'ViewInventory/ViewInventory';
+        //params['requestType'] = "POST";
+        //params['contentType'] = "application/json";
+        //params['data'] = searchText;
+        //params['successCallbackFunction'] = SuccesGetServerInventory;
+        //doAjax(params);
+    },
+};
+//END Server Edit
+
+//START Telecom Edit
+function operateFormatterTelecomEdit(value, row, index) {
+    var str = '';
+    if (row.IsAssetRetired == 'No') {
+        str = '<button type="button" class="btn btn-floating btn-primary btn-xs"  data-placement="top" data-target="#TAGModelTelecom" data-toggle="modal" data-original-title="Edit"><i class="icon wb-pencil" aria-hidden="true"></i></button>'
+    }
+    else {
+        str = ''
+    }
+    return [
+        str
+    ].join('');
+}
+window.operateEventsTelecomEdit = {
+    'click .btn-primary': function (e, value, row, index) {
+        $('#hdnInventoryId').val(row.InventoryID);
+        $('#hdnInventoryTypeId').val(row.InventoryTypeID);
+        $('#hdnAssetValidationStatusID').val(row.AssetValidationStatusID);
+        GetAssetType('MakeTelecom');
+        //GetAssetType('ModelTelecom');
+        //GetAssetType('StockStatusTelecom');
+        //GetAssetType('DevicelifeTelecom');
+        //GetSubMinorCategory('', 'Telecom');
+        //var searchText = {
+        //    PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Telecom', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'Edit', InventoryID: row.InventoryID
+        //};
+        //var params = $.extend({}, doAjax_params_default);
+        //params['url'] = 'ViewInventory/ViewInventory';
+        //params['requestType'] = "POST";
+        //params['contentType'] = "application/json";
+        //params['data'] = searchText;
+        //params['successCallbackFunction'] = SuccesGetTelecomInventory;
+        //doAjax(params);
+    },
+};
+//END Telecom Edit
+
+//Start - Infra Inventory P2 Changes
+function operateFormatterInfraEdit(value, row, index) {
+    var str = '';
+    if (row.IsAssetRetired == 'No') {
+        str = '<button type="button" class="btn btn-floating btn-primary btn-xs"  data-placement="top" data-target="#TAGModelInfra" data-toggle="modal" data-original-title="Edit"><i class="icon wb-pencil" aria-hidden="true"></i></button>'
+    }
+    else {
+        str = ''
+    }
+    return [
+        str
+    ].join('');
+}
+window.operateEventsInfraEdit = {
+    'click .btn-primary': function (e, value, row, index) {
+        $('#hdnInventoryId').val(row.InventoryID);
+        $('#hdnInventoryTypeId').val(row.InventoryTypeID);
+        $('#hdnAssetValidationStatusID').val(row.AssetValidationStatusID);
+        GetAssetType('MakeInfra');
+    },
+};
+//End - Infra Inventory P2 Changes
+
+function SuccesGetDesktopInventory(data) {
+    var data = jQuery.parseJSON(data);
+    $("#txtMajorCategory").text(data.dtInventoryDesktopDetailEntity[0].MajorCategory);
+    $("#txtMinorCategory").text(data.dtInventoryDesktopDetailEntity[0].MinorCategory);
+    $("#txtSubMinorCategory").text(data.dtInventoryDesktopDetailEntity[0].MinorSubCategory);
+    $("#txtItemCode").val(data.dtInventoryDesktopDetailEntity[0].ItemCode);
+    $("#txtLocation").text(data.dtInventoryDesktopDetailEntity[0].Location);
+    $("#txtAssetType").text(data.dtInventoryDesktopDetailEntity[0].AssetType);
+    $("#txtAllocationType option[value='" + data.dtInventoryDesktopDetailEntity[0].AllocationTypeID + "']").prop("selected", true);
+    $("#txtAssetId").val(data.dtInventoryDesktopDetailEntity[0].SystemAssetId);
+    $("#txtSerialNumbers").val(data.dtInventoryDesktopDetailEntity[0].SerialNumber);
+    $("#txtHostname").val(data.dtInventoryDesktopDetailEntity[0].Hostname);
+    $("#txtDualHostName").val(data.dtInventoryDesktopDetailEntity[0].DualHostName);
+    $("#txtDeskID").val(data.dtInventoryDesktopDetailEntity[0].DeskID);
+    $("#txtIPAddress").val(data.dtInventoryDesktopDetailEntity[0].IPAddress);
+    $("#txtMake option[value='" + data.dtInventoryDesktopDetailEntity[0].MakeDesktopID + "']").prop("selected", true);
+    $("#txtModelSize").val(data.dtInventoryDesktopDetailEntity[0].ModelSize);
+    $("#txtProcessor").val(data.dtInventoryDesktopDetailEntity[0].Processor);
+    $("#txtRAM").val(data.dtInventoryDesktopDetailEntity[0].RAM);
+    $("#txtHardDisk").val(data.dtInventoryDesktopDetailEntity[0].HardDisk);
+    $("#txtDomainName").val(data.dtInventoryDesktopDetailEntity[0].DomainName);
+    $("#txtSharedDedicated option[value='" + data.dtInventoryDesktopDetailEntity[0].SharedDedicated + "']").prop("selected", true);
+    $("#txtproject").val(data.dtInventoryDesktopDetailEntity[0].project);
+    $("#txtLocation1").val(data.dtInventoryDesktopDetailEntity[0].ProjectLocation);
+    $("#txtwing").val(data.dtInventoryDesktopDetailEntity[0].wing);
+    $("#txtInstalledOperatingSystem").val(data.dtInventoryDesktopDetailEntity[0].InstalledOperatingSystem);
+    $("#txtPurchasedOS").val(data.dtInventoryDesktopDetailEntity[0].PurchasedOS);
+    $("#txtMSOffice").prop('checked', data.dtInventoryDesktopDetailEntity[0].MSOffice);
+    $("#txtOCSClient").prop('checked', data.dtInventoryDesktopDetailEntity[0].OCSClient);
+    $("#txtAcrobatReader").prop('checked', data.dtInventoryDesktopDetailEntity[0].AcrobatReader);
+    $("#txtWinzip").prop('checked', data.dtInventoryDesktopDetailEntity[0].Winzip);
+    $("#txtAntivirus").prop('checked', data.dtInventoryDesktopDetailEntity[0].Antivirus);
+    $("#txtOtherSoftware").val(data.dtInventoryDesktopDetailEntity[0].OtherSoftware);
+    $("#txtPONumber").text(data.dtInventoryDesktopDetailEntity[0].PoNumber);
+    $("#txtWarrantyStart").val(data.dtInventoryDesktopDetailEntity[0].WarrantyStart);
+    $("#txtWarrantyEnd").val(data.dtInventoryDesktopDetailEntity[0].WarrantyEnd);
+    $("#txtAgeSpend").val(data.dtInventoryDesktopDetailEntity[0].AgeSpend);
+    $("#txtPhysicalVerification").val(data.dtInventoryDesktopDetailEntity[0].PhysicalVerification);
+    $("#txtStockStatus option[value='" + data.dtInventoryDesktopDetailEntity[0].StockStatusDesktopID + "']").prop("selected", true);
+    $("#txtbond").val(data.dtInventoryDesktopDetailEntity[0].bond);
+    $("#txtTAGNumberDesk").val(data.dtInventoryDesktopDetailEntity[0].TAGNumber);
+    $("#txtdesklocation").val(data.dtInventoryDesktopDetailEntity[0].SubLocation);
+    $("#deskSubMinorCat option[value='" + data.dtInventoryDesktopDetailEntity[0].SubMinorCategory + "']").prop("selected", true);
+
+
+}
+
+function SuccesGetLaptopInventory(data) {
+    var data = jQuery.parseJSON(data);
+    if (data.dtInventoryLaptopDetailEntity != null) {
+        if (data.dtInventoryLaptopDetailEntity.length > 0) {
+            $('#txtEmployeeID').val(data.dtInventoryLaptopDetailEntity[0].EmployeeID);
+            $('#txtEmployeeName').val(data.dtInventoryLaptopDetailEntity[0].EmployeeName);
+            $('#txtModel').val(data.dtInventoryLaptopDetailEntity[0].Model);
+            $('#txtSerialNumberes').val(data.dtInventoryLaptopDetailEntity[0].SerialNumber);
+            $('#txtBadgeID').val(data.dtInventoryLaptopDetailEntity[0].BadgeID);
+            $('#txtLocations').text(data.dtInventoryLaptopDetailEntity[0].Location);
+            $('#txtIssueDate').val(data.dtInventoryLaptopDetailEntity[0].IssueDate);
+            $('#txtExpectedReturnDate').val(data.dtInventoryLaptopDetailEntity[0].ExpectedReturnDate);
+            // $('#txtIsReturned').val(data.dtInventoryLaptopDetailEntity[0].IsReturned);
+            // $('#txtIsReturned:checked').prop('checked', data.dtInventoryLaptopDetailEntity[0].IsReturned);
+            var isretn = data.dtInventoryLaptopDetailEntity[0].IsReturned == true ? true : false;
+            $('#txtIsReturned').prop("checked", isretn);
+            //$('#txtIsReturned').attr("checked", data.dtInventoryLaptopDetailEntity[0].IsReturned);
+            // $('#txtIsReturned:checked').val(data.dtInventoryLaptopDetailEntity[0].IsReturned)//.prop('checked', true);
+            $('#txtPoNumber').text(data.dtInventoryLaptopDetailEntity[0].PoNumber);
+            $("#txtTAGNumberLaptop").val(data.dtInventoryLaptopDetailEntity[0].TAGNumber);
+            $("#txtlaplocation").val(data.dtInventoryLaptopDetailEntity[0].SubLocation);
+            $("#lapSubMinorCat option[value='" + data.dtInventoryLaptopDetailEntity[0].SubMinorCategory + "']").prop("selected", true);
+            $('#txtlaptopMake').val(data.dtInventoryLaptopDetailEntity[0].Make);
+        }
+    }
+}
+
+function SuccesGetNetworkInventory(data) {
+    var data = jQuery.parseJSON(data);
+    if (data.dtInventoryNetworkDetailEntity != null) {
+        if (data.dtInventoryNetworkDetailEntity.length > 0) {
+            $('#txtLocationes').text(data.dtInventoryNetworkDetailEntity[0].Location);
+            $('#txtSiteName').val(data.dtInventoryNetworkDetailEntity[0].SiteName);
+            $('#txtAssetTypeses').text(data.dtInventoryNetworkDetailEntity[0].AssetType);
+            $('#txtSystemAssetID').val(data.dtInventoryNetworkDetailEntity[0].SystemAssetID);
+            $('#txtSerialNumbered').val(data.dtInventoryNetworkDetailEntity[0].SerialNumber);
+            ////$('#txtHostnames').val(data.dtInventoryNetworkDetailEntity[0].Hostname);
+            $('#txtHostnames').val(data.dtInventoryNetworkDetailEntity[0].Model);
+            $('#txtIPAddresses').val(data.dtInventoryNetworkDetailEntity[0].IPAddress);
+            $("#txtMakes option[value='" + data.dtInventoryNetworkDetailEntity[0].MakeNetworkID + "']").attr("selected", true);
+            $('#txtModelSizes').val(data.dtInventoryNetworkDetailEntity[0].ModelSize);
+            $('#txtProcessname').val(data.dtInventoryNetworkDetailEntity[0].Processname);
+            $("#txtSharedDedicateds option[value='" + data.dtInventoryNetworkDetailEntity[0].SharedDedicatedID + "']").attr("selected", true);
+            $('#txtPONumbered').text(data.dtInventoryNetworkDetailEntity[0].PONumber);
+            $("#txtStockstatus option[value='" + data.dtInventoryNetworkDetailEntity[0].StockStatusNetworkID + "']").attr("selected", true);
+            $("#txtDeviceSupport option[value='" + data.dtInventoryNetworkDetailEntity[0].DeviceSupportID + "']").attr("selected", true);
+            $('#txtDefineScope').val(data.dtInventoryNetworkDetailEntity[0].DefineScope);
+            $("#txtEndoflifeofdevice option[value='" + data.dtInventoryNetworkDetailEntity[0].EndoflifeofdeviceID + "']").attr("selected", true);
+            $('#txtTAGNumberNw').val(data.dtInventoryNetworkDetailEntity[0].TAGNumber);
+            $('#txtnetwklocation').val(data.dtInventoryNetworkDetailEntity[0].SubLocation);
+            $("#netwkSubMinorCat option[value='" + (data.dtInventoryNetworkDetailEntity[0].SubMinorCategory != null || data.dtInventoryNetworkDetailEntity[0].SubMinorCategory != '0' || data.dtInventoryNetworkDetailEntity[0].SubMinorCategory != '') ? data.dtInventoryNetworkDetailEntity[0].SubMinorCategory : '0' + "']").attr("selected", true);
+
+        }
+    }
+}
+
+function SuccesGetServerInventory(data) {
+    var data = jQuery.parseJSON(data);
+    if (data.dtInventoryServerDetailEntity != null) {
+        if (data.dtInventoryServerDetailEntity.length > 0) {
+            $('#txtAcquistionDate').val(data.dtInventoryServerDetailEntity[0].AcquistionDate);
+            $('#txtAssetNo').val(data.dtInventoryServerDetailEntity[0].AssetNo);
+            $('#txtAsset').val(data.dtInventoryServerDetailEntity[0].Asset);
+            $('#txtServerName').val(data.dtInventoryServerDetailEntity[0].ServerName);
+            $('#txtServerusage').val(data.dtInventoryServerDetailEntity[0].Serverusage);
+            $('#txtServerdomain').val(data.dtInventoryServerDetailEntity[0].Serverdomain);
+            $('#txtServerrole').val(data.dtInventoryServerDetailEntity[0].Serverrole);
+            $('#txtenvironment').val(data.dtInventoryServerDetailEntity[0].environment);
+            $("#txtstatus option[value='" + data.dtInventoryServerDetailEntity[0].ServerStatusID + "']").attr("selected", true);
+            $('#txtProduct').val(data.dtInventoryServerDetailEntity[0].Product);
+            $('#txtType').val(data.dtInventoryServerDetailEntity[0].Type);
+            $('#txtTypeno').val(data.dtInventoryServerDetailEntity[0].Typeno);
+            $('#txtOSType').val(data.dtInventoryServerDetailEntity[0].OSType);
+            $('#txtOS').val(data.dtInventoryServerDetailEntity[0].OS);
+            $('#txtNoofprocessor').val(data.dtInventoryServerDetailEntity[0].Noofprocessor);
+            $('#txtSerialNumbereded').val(data.dtInventoryServerDetailEntity[0].SerialNumber);
+            $('#txtTAGServer').val(data.dtInventoryServerDetailEntity[0].TAGNumber);
+            $("#servSubMinorCat option[value='" + data.dtInventoryServerDetailEntity[0].SubMinorCategory + "']").attr("selected", true);
+            $('#txtservlocation').val(data.dtInventoryServerDetailEntity[0].SubLocation);
+            //alert('Set Value');
+        }
+    }
+}
+
+function SuccesGetTelecomInventory(data) {
+    var data = jQuery.parseJSON(data);
+    if (data.dtInventoryTelecomDetailEntity != null) {
+        if (data.dtInventoryTelecomDetailEntity.length > 0) {
+            $('#txtLocationed').text(data.dtInventoryTelecomDetailEntity[0].Location);
+            $('#txtAssetTypes').val(data.dtInventoryTelecomDetailEntity[0].AssetType);
+            $('#txtAssetID').val(data.dtInventoryTelecomDetailEntity[0].AssetID);
+            $('#txtSerialNumbereds').val(data.dtInventoryTelecomDetailEntity[0].SerialNumber);
+            $('#txtHostNamed').val(data.dtInventoryTelecomDetailEntity[0].HostName);
+            $("#txtMaked option[value='" + data.dtInventoryTelecomDetailEntity[0].MakeTelecomID + "']").attr("selected", true);
+            $("#txtModeled option[value='" + data.dtInventoryTelecomDetailEntity[0].ModelTelecom + "']").attr("selected", true);
+            $('#txtPONumbereds').text(data.dtInventoryTelecomDetailEntity[0].PONumber);
+            $("#txtStockStatuss option[value='" + data.dtInventoryTelecomDetailEntity[0].StockStatusTelecomID + "']").attr("selected", true);
+            $("#txtDevicelife option[value='" + data.dtInventoryTelecomDetailEntity[0].DeviceLifeTelecomID + "']").attr("selected", true);
+            $('#txtTAGNumberTel').val(data.dtInventoryTelecomDetailEntity[0].TAGNumber);
+            $('#txttellocation').val(data.dtInventoryTelecomDetailEntity[0].SubLocation);
+            $("#telSubMinorCat option[value='" + data.dtInventoryTelecomDetailEntity[0].SubMinorCategory + "']").attr("selected", true);
+        }
+    }
+}
+
+//Start - Infra Inventory P2 Changes
+function SuccesGetInfraInventory(data) {
+    var data = jQuery.parseJSON(data);
+    if (data.dtInventoryInfraDetailEntity != null) {
+        if (data.dtInventoryInfraDetailEntity.length > 0) {
+
+            $('#txtInfraTAGNumber').val(data.dtInventoryInfraDetailEntity[0].TAGNumber);
+            $('#txtInfraSerialNumber').val(data.dtInventoryInfraDetailEntity[0].SerialNumber);
+            $("#ddlMakes option[value='" + data.dtInventoryInfraDetailEntity[0].Make + "']").attr("selected", true);
+            $("#ddlModel option[value='" + data.dtInventoryInfraDetailEntity[0].Model + "']").attr("selected", true);
+            $('#txtInfraSublocation').val(data.dtInventoryInfraDetailEntity[0].SubLocation);
+            $('#txtInfraIPAddresses').val(data.dtInventoryInfraDetailEntity[0].IPAddress);
+            $('#txtInfraProcessname').val(data.dtInventoryInfraDetailEntity[0].ProcessName);
+            $('#txtInfraDefineScope').val(data.dtInventoryInfraDetailEntity[0].DefineScope);
+            $("#ddlInfraInventoryAssetType option[value='" + data.dtInventoryInfraDetailEntity[0].InventoryAssetType + "']").attr("selected", true);
+            $("#ddlInfraStockstatus option[value='" + data.dtInventoryInfraDetailEntity[0].StockStatus + "']").attr("selected", true);
+            $("#ddlInfraDeviceSupport option[value='" + data.dtInventoryInfraDetailEntity[0].DeviceSupport + "']").attr("selected", true);
+            $("#ddlInfraHostName option[value='" + data.dtInventoryInfraDetailEntity[0].HostName + "']").attr("selected", true);
+            $("#ddlInfraSharedDedicated option[value='" + data.dtInventoryInfraDetailEntity[0].SharedDedicated + "']").attr("selected", true);
+            $('#txtInfraSiteName').val(data.dtInventoryInfraDetailEntity[0].SiteName);
+            $("#ddlInfraSubMinorCat option[value='" + data.dtInventoryInfraDetailEntity[0].SubMinorCategory + "']").attr("selected", true);
+        }
+    }
+}
+//End - Infra Inventory P2 Changes
+
+function SuccessEdit(InventoryType) {
+    var desktopArray = [];
+    var laptopArray = [];
+    var networkArray = [];
+    var serverArray = [];
+    var telecomArray = [];
+
+    //Start - Infra Inventory P2 Changes
+    var infraArray = [];
+    //End - Infra Inventory P2 Changes
+
+
+    if (InventoryType == 'Desktop') {
+        var txtMSOffice = $("#txtMSOffice");
+        var txtOCSClient = $("#txtOCSClient");
+        var txtAcrobatReader = $("#txtAcrobatReader");
+        var txtWinzip = $("#txtWinzip");
+        var txtAntivirus = $("#txtAntivirus");
+
+        var InventoryDesktop = {
+            //'PoNumber': $("#txtPONumber").html(),
+            'PoNumber': $.trim($("#hdnPonumber").val()),
+            'PoId': '',
+            'PoDate': '',
+            'GRNNumber': '',
+            'GRNDate': '',
+            'ItemCode': $("#txtItemCode").val(),
+            'TAGCount': '',
+            'MajorCategory': $("#txtMajorCategory").html(),
+            'MinorCategory': $("#txtMinorCategory").html(),
+            'MinorSubCategory': $("#txtSubMinorCategory").html(),
+            'Description': '',
+            'ManufacturerName': '',
+            'TaggableTypeID': '',
+            'AssetTypeID': $("#txtAssetType").html(),
+            'Location': $("#txtLocation").html(),
+            'ExpTypeID': '',
+            'DualHostName': $("#txtDualHostName").val(),
+            'Hostname': $("#txtHostname").val(),
+            'DeskID': $("#txtDeskID").val(),
+            'IPAddress': $("#txtIPAddress").val(),
+            'MakeDesktopID': $('#txtMake :selected').val(),
+            'ModelSize': $("#txtModelSize").val(),
+            'Processor': $("#txtProcessor").val(),
+            'RAM': $("#txtRAM").val(),
+            'HardDisk': $("#txtHardDisk").val(),
+            'DomainName': $("#txtDomainName").val(),
+            'SharedDedicated': $('#txtSharedDedicated :selected').val(),
+            'project': $("#txtproject").val(),
+            'Location1': $("#txtLocation1").val(),
+            'wing': $("#txtwing").val(),
+            'InstalledOperatingSystem': $("#txtInstalledOperatingSystem").val(),
+            'PurchasedOS': $("#txtPurchasedOS").val(),
+            'MSOffice': $("#txtMSOffice").is(':checked') ? $("#txtMSOffice").val() : "",//txtMSOffice[0].checked,
+            'OCSClient': $("#txtOCSClient").is(':checked') ? $("#txtOCSClient").val() : "",//txtOCSClient[0].checked,
+            'AcrobatReader': $("#txtAcrobatReader").is(':checked') ? $("#txtAcrobatReader").val() : "",//txtOCSClient[0].checked,
+            'Winzip': $("#txtWinzip").is(':checked') ? $("#txtWinzip").val() : "",//txtWinzip[0].checked,
+            'Antivirus': $("#txtAntivirus").is(':checked') ? $("#txtAntivirus").val() : "",//txtAntivirus[0].checked,
+            'OtherSoftware': $("#txtOtherSoftware").val(),
+            'WarrantyStart': $("#txtWarrantyStart").val(),
+            'WarrantyEnd': $("#txtWarrantyEnd").val(),
+            'AgeSpend': $("#txtAgeSpend").val(),
+            'PhysicalVerification': $("#txtPhysicalVerification").val(),
+            'StockStatusDesktopID': $('#txtStockStatus :selected').val(),
+            'bond': $("#txtbond").val(),
+            'AllocationTypeID': $('#txtAllocationType :selected').val(),
+            'SystemAssetID': $('#txtAssetId').val(),// $("#txtAssetId").val(),
+            'AssetId': '',
+            'SerialNumber': $("#txtSerialNumbers").val(),
+            'TAGNumber': $("#txtTAGNumberDesk").val(),
+            'SubLocation': $("#txtdesklocation").val(),
+            'SubMinorCategory': $('#deskSubMinorCat :selected').val()
+        }
+        desktopArray.push(InventoryDesktop);
+    }
+
+    else if (InventoryType == 'Laptop') {
+        //if ($('#txtIsReturned').val() == "Yes")
+        //{ var varReturn = 1 }
+        //else
+        //{ var varReturn = 0 }
+
+        var InventoryLaptop = {
+            // 'PoNumber': $('#txtPoNumber').html(),
+            'PoNumber': $.trim($("#hdnPonumber").val()),
+            'PoId': '',
+            'PoDate': '',
+            'GRNNumber': '',
+            'GRNDate': '',
+            'ItemCode': '',
+            'TAGCount': '',
+            'MajorCategory': '',
+            'MinorCategory': '',
+            'MinorSubCategory': '',
+            'Description': '',
+            'ManufacturerName': '',
+            'TaggableTypeID': '',
+            'AssetTypeID': '',
+            'ExpTypeID': '',
+            'EmployeeID': $('#txtEmployeeID').val(),
+            'EmployeeName': $('#txtEmployeeName').val(),
+            'Model': $('#txtModel').val(),
+            'BadgeID': $('#txtBadgeID').val(),
+            'IssueDate': $('#txtIssueDate').val(),
+            'ExpectedReturnDate': $('#txtExpectedReturnDate').val(),
+            'IsReturned': $('#txtIsReturned').is(':checked'),
+            'Make': $("#txtlaptopMake").val(),
+            'SerialNumber': $('#txtSerialNumberes').val(),
+            'TAGNumber': $('#txtTAGNumberLaptop').val(),
+            'Location': $('#txtLocations').html(),
+            'SubLocation': $("#txtlaplocation").val(),
+            'SubMinorCategory': $('#lapSubMinorCat :selected').val()
+        }
+        laptopArray.push(InventoryLaptop);
+    }
+
+    else if (InventoryType == 'Network') {
+        var InventoryNetwork = {
+            //'PoNumber': $('#txtPONumbered').html(),
+            'PoNumber': $.trim($("#hdnPonumber").val()),
+            'PoId': '',
+            'PoDate': '',
+            'GRNNumber': '',
+            'GRNDate': '',
+            'ItemCode': '',
+            'TAGCount': '',
+            'MajorCategory': '',
+            'MinorCategory': '',
+            'MinorSubCategory': '',
+            'Description': '',
+            'ManufacturerName': '',
+            'TaggableTypeID': '',
+            'AssetTypeID': $('#txtAssetTypeses').html(),
+            'ExpTypeID': '',
+            'MakeNetworkID': $('#txtMakes :selected').val(),
+            'Model': $('#txtHostnames').val(),
+            'StockStatusNetworkID': $('#txtStockstatus :selected').val(),
+            'DeviceLife': '',
+            'DefineScope': $('#txtDefineScope').val(),
+            'EndoflifeofdeviceID': $('#txtEndoflifeofdevice :selected').val(),
+            'DeviceSupportID': $('#txtDeviceSupport :selected').val(),
+            'ModelSize': $('#txtModelSizes').val(),
+            'Processname': $('#txtProcessname').val(),
+            'SharedDedicatedID': $('#txtSharedDedicateds :selected').val(),
+            'SystemAssetID': 0,//$('#txtSystemAssetID').val(),
+            'IPAddress': $('#txtIPAddresses').val(),
+            'SiteName': $('#txtSiteName').val(),
+            'SerialNumber': $('#txtSerialNumbered').val(),
+            'AssetTypeNetworkID': $('#txtAssetTypeses').val(),
+            'TAGNumber': $('#txtTAGNumberNw').val(),
+            'Location': $('#txtLocationes').html(),
+            'SubLocation': $('#txtnetwklocation').val(),
+            'SubMinorCategory': $('#netwkSubMinorCat :selected').val()
+        }
+        networkArray.push(InventoryNetwork);
+    }
+
+    else if (InventoryType == 'Server') {
+        var InventoryServer = {
+            //'PoNumber': $('#txtPONumbered').html(),
+            'PoNumber': $.trim($("#hdnPonumber").val()),
+            'PoId': '',
+            'PoDate': '',
+            'GRNNumber': '',
+            'GRNDate': '',
+            'ItemCode': '',
+            'TAGCount': '',
+            'MajorCategory': '',
+            'MinorCategory': '',
+            'MinorSubCategory': '',
+            'Description': '',
+            'ManufacturerName': '',
+            'TaggableTypeID': '',
+            'AssetTypeID': $('#txtAssetTypeses').html(),
+            'ExpTypeID': '',
+            'ServerName': $('#txtServerName').val(),
+            'ServerUsage': $('#txtServerusage').val(),
+            'ServerDomain': $('#txtServerdomain').val(),
+            'ServerRole': $('#txtServerrole').val(),
+            'AcquistionDate': $('#txtAcquistionDate').val(),
+            'Asset': $('#txtAsset').val(),
+            'AssetNo': $('#txtAssetNo').val(),
+            'Environment': $('#txtenvironment').val(),
+            'ServerStatusID': $('#txtstatus :selected').val(),
+            'Product': $('#txtProduct').val(),
+            'Type': $('#txtType').val(),
+            'TypeNo': $('#txtTypeno').val(),
+            'OSType': $('#txtOSType').val(),
+            'OS': $('#txtOS').val(),
+            'NoOfProcessor': $('#txtNoofprocessor').val(),
+            'SerialNumber': $('#txtSerialNumbereded').val(),
+            'TAGNumber': $('#txtTAGServer').val(),
+            'Location': '',
+            'SubLocation': $('#txtservlocation').val(),
+            'SubMinorCategory': $('#servSubMinorCat :selected').val()
+        }
+        serverArray.push(InventoryServer);
+    }
+
+    else if (InventoryType == 'Telecom') {
+        var InventoryTelecom = {
+            // 'PoNumber': $('#txtPONumbereds').html(),
+            'PoNumber': $.trim($("#hdnPonumber").val()),
+            'PoId': '',
+            'PoDate': '',
+            'GRNNumber': '',
+            'GRNDate': '',
+            'ItemCode': '',
+            'TAGCount': '',
+            'MajorCategory': '',
+            'MinorCategory': '',
+            'MinorSubCategory': '',
+            'Description': '',
+            'ManufacturerName': '',
+            'TaggableTypeID': '',
+            'AssetTypeID': $('#txtAssetTypes').val(),
+            'ExpTypeID': '',
+            'HostName': $('#txtHostNamed').val(),
+            'MakeTelecomID': $('#txtMaked :selected').val(),
+            'ModelTelecom': $('#txtModeled :selected').val(),
+            'DeviceLifeTelecomID': $('#txtDevicelife :selected').val(),
+            'StockStatusTelecomID': $('#txtStockStatuss :selected').val(),
+            'AssetTypeTelecomID': 0,//$('#txtAssetTypes').val(),
+            'SerialNumber': $('#txtSerialNumbereds').val(),
+            'TAGNumber': $('#txtTAGNumberTel').val(),
+            'Location': $('#txtLocationed').html(),
+            'SubLocation': $('#txttellocation').val(),
+            'SubMinorCategory': $('#telSubMinorCat :selected').val()
+        }
+        telecomArray.push(InventoryTelecom);
+    }
+
+        //Start - Infra Inventory P2 Changes
+    else if (InventoryType == 'Infra') {
+        var InventoryInfra = {
+
+            'PoNumber': $.trim($("#hdnPonumber").val()),
+            'PoId': '',
+            'PoDate': '',
+            'GRNNumber': '',
+            'GRNDate': '',
+            'ItemCode': '',
+            'TAGCount': '',
+            'MajorCategory': '',
+            'MinorCategory': '',
+            'MinorSubCategory': '',
+            'Description': '',
+            'ManufacturerName': '',
+            'TaggableTypeID': '',
+            'AssetTypeID': '',///////
+            'ExpTypeID': '',
+            'SiteName': $('#txtInfraSiteName').val(), ///
+            'InventoryAssetType': $('#ddlInfraInventoryAssetType :selected').val(), // Dropdown
+            'HostName': $('#ddlInfraHostName :selected').val(), //Dropdown
+            'ProcessName': $('#txtInfraProcessname').val(),
+            'IPAddress': $('#txtInfraIPAddresses').val(),
+            'Make': $('#ddlMakes :selected').val(), // Dropdown
+            'Model': $('#ddlModel :selected').val(), //Dropdown
+            'SharedDedicated': $('#ddlInfraSharedDedicated :selected').val(), //Dropdown
+            'DefineScope': $('#txtInfraDefineScope').val(), //
+            'DeviceSupport': $('#ddlInfraDeviceSupport :selected').val(), //Dropdown
+            'StockStatus': $('#ddlInfraStockstatus :selected').val(), //Dropdown
+            'SerialNumber': $('#txtInfraSerialNumber').val(), //
+            'TAGNumber': $('#txtInfraTAGNumber').val(),//
+            'Location': '',
+            'SubLocation': $('#txtInfraSublocation').val(),//
+            'SubMinorCategory': $('#ddlInfraSubMinorCat :selected').val()//
+        }
+        infraArray.push(InventoryInfra);
+    }
+
+    //End - Infra Inventory P2 Changes
+
+
+    var dataConfirmTAG = { lstInventoryDesktopDetailEntity: desktopArray, lstInventoryLaptopDetailEntity: laptopArray, lstInventoryNetworkDetailEntity: networkArray, lstInventoryServerDetailEntity: serverArray, lstInventoryTelecomDetailEntity: telecomArray, lstInventoryInfraDetailEntity: infraArray, InventoryID: $("#hdnInventoryId").val(), InventoryTypeID: $("#hdnInventoryTypeId").val(), InventoryType: InventoryType, AssetValidationStatusID: $('#hdnAssetValidationStatusID').val() };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/EditInventoryDesktop';
+    params['data'] = dataConfirmTAG;
+    params['contentType'] = "application/json";
+    params['successCallbackFunction'] = SuccessEditDesktop;
+    //debugger;
+    doAjax(params);
+    // alert(InventoryType);
+    tabClick(InventoryType, 0);
+}
+
+$("#btnSubmitDesktop").click(function () {
+
+    if ($("#txtSerialNumbers").val() == "" || $("#txtTAGNumberDesk").val() == "") {
+        toastrStateConfig(); toastr['error']("TAG and Serial number is manadatory to update inventory!");
+    }
+    else { SuccessEdit('Desktop'); }
+
+
+});
+
+$("#btnSubmitLaptop").click(function () {
+    if ($("#txtSerialNumberes").val() == "" || $("#txtTAGNumberLaptop").val() == "") {
+        toastrStateConfig(); toastr['error']("TAG and Serial number is manadatory to update inventory!");
+    }
+        //else if(('#txtWarrantyStart').val()!='')
+        //{
+        //    var inputWarrantyStaarDt, todaysDt;
+        //    inputWarrantyStaarDt = new Date(('#txtWarrantyStart').val());
+        //    todaysDt = new Date();
+        //}
+    else {
+        SuccessEdit('Laptop');
+    }
+
+});
+
+$("#btnSubmitNetwork").click(function () {
+    if ($("#txtSerialNumbered").val() == "" || $("#txtTAGNumberNw").val() == "") {
+        toastrStateConfig(); toastr['error']("TAG and Serial number is manadatory to update inventory!");
+    }
+    else {
+        SuccessEdit('Network');
+    }
+});
+
+$("#btnSubmitServer").click(function () {
+    if ($("#txtSerialNumbereded").val() == "" || $("#txtTAGServer").val() == "") {
+        toastrStateConfig(); toastr['error']("TAG and Serial number is manadatory to update inventory!");
+    }
+    else {
+        SuccessEdit('Server');
+    }
+});
+
+$("#btnSubmitTelecom").click(function () {
+    if ($("#txtSerialNumbereds").val() == "" || $("#txtTAGNumberTel").val() == "") {
+        toastrStateConfig(); toastr['error']("TAG and Serial number is manadatory to update inventory!");
+    }
+    else {
+        SuccessEdit('Telecom');
+    }
+});
+
+//Start - Infra Inventory P2 Changes
+$("#btnSubmitInfra").click(function () {
+    if ($("#txtInfraTAGNumber").val() == "" || $("#txtInfraSerialNumber").val() == "") {
+        toastrStateConfig(); toastr['error']("TAG and Serial number is manadatory to update inventory!");
+    }
+    else {
+        SuccessEdit('Infra');
+    }
+});
+//End - Infra Inventory P2 Changes
+
+function SuccessEditDesktop(data) {
+    //toastrStateConfig(); toastr['success']("Data Updated successful");
+    if (data.StatusCode == "200") {
+        toastrStateConfig();
+        toastr['success'](data.Msg);
+        //Search();
+    }
+    else {
+        toastrStateConfig();
+        toastr['error'](data.Msg);
+    }
+}
+
+function GetAssetTypeSuccesses(msg) {
+    //$("#lstAssetType option").remove();
+    $.each(msg, function (index, item) {
+        $("#lstAssetType").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+}
+function GetMakeDesktopSuccesses(msg) {
+    $("#txtMake option").remove();
+    $.each(msg, function (index, item) {
+        $("#txtMake").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+    GetAssetType('AllocationType');
+    GetAssetType('SharedDedicatedDesktop');
+    GetAssetType('stockstatus');
+    GetSubMinorCategory('', 'Desktop');
+
+}
+function GetAllocationTypeSuccesses(msg) {
+    $("#txtAllocationType option").remove();
+    $.each(msg, function (index, item) {
+        $("#txtAllocationType").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+
+    //  document.getElementById("txtAllocationType").insertBefore(new Option('', '0'), document.getElementById("txtAllocationType").firstChild);
+}
+function GetstockstatusSuccesses(msg) {
+    $("#txtStockStatus option").remove();
+    $("#txtStockStatus").append("<option value='0'></option>");
+    $.each(msg, function (index, item) {
+        $("#txtStockStatus").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+    //  document.getElementById("txtStockStatus").insertBefore(new Option('', '0'), document.getElementById("txtStockStatus").firstChild);
+}
+function GetSharedDedicatedDesktopSuccesses(msg) {
+    $("#txtSharedDedicated option").remove();
+    $("#txtSharedDedicated").append("<option value='0'></option>");
+    $.each(msg, function (index, item) {
+        $("#txtSharedDedicated").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+}
+function GetMakeNetworkSuccesses(msg) {
+    $("#txtMakes option").remove();
+    $.each(msg, function (index, item) {
+        $("#txtMakes").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+
+    GetAssetType('SharedDedicatedNetwork');
+    GetAssetType('StockstatusNetwork');
+    GetAssetType('DeviceSupportNetwork');
+    GetAssetType('EndoflifeofdeviceNetwork');
+    GetSubMinorCategory('', 'Network');
+}
+function GetSharedDedicatedNetworkSuccesses(msg) {
+    $("#txtSharedDedicateds option").remove();
+
+    $("#txtSharedDedicateds").append("<option value='0'></option>");
+    $.each(msg, function (index, item) {
+        $("#txtSharedDedicateds").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+    // document.getElementById("txtSharedDedicateds").insertBefore(new Option('', '0'), document.getElementById("txtSharedDedicateds").firstChild);
+}
+function GetStockstatusNetworkSuccesses(msg) {
+    $("#txtStockstatus option").remove();
+    $("#txtStockstatus").append("<option value='0'></option>");
+    $.each(msg, function (index, item) {
+        $("#txtStockstatus").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+    //  document.getElementById("txtStockstatus").insertBefore(new Option('', '0'), document.getElementById("txtStockstatus").firstChild);
+}
+function GetDeviceSupportSuccesses(msg) {
+    $("#txtDeviceSupport option").remove();
+    $("#txtDeviceSupport").append("<option value='0'></option>");
+    $.each(msg, function (index, item) {
+        $("#txtDeviceSupport").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+    //  document.getElementById("txtDeviceSupport").insertBefore(new Option('', '0'), document.getElementById("txtDeviceSupport").firstChild);
+}
+function GetEndoflifeofdeviceSuccesses(msg) {
+    $("#txtEndoflifeofdevice option").remove();
+    $("#txtEndoflifeofdevice").append("<option value='0'></option>");
+    $.each(msg, function (index, item) {
+        $("#txtEndoflifeofdevice").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+
+    // document.getElementById("txtEndoflifeofdevice").insertBefore(new Option('', '0'), document.getElementById("txtEndoflifeofdevice").firstChild);
+}
+function GetStatusServerSuccesses(msg) {
+    $("#txtstatus option").remove();
+    $("#txtstatus").append("<option value='0'></option>");
+    $.each(msg, function (index, item) {
+        $("#txtstatus").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+
+    GetSubMinorCategory('', 'Server');
+    // document.getElementById("txtstatus").insertBefore(new Option('', '0'), document.getElementById("txtstatus").firstChild);
+}
+
+function GetMakeTelecomSuccesses(msg) {
+    $("#txtMaked option").remove();
+    $.each(msg, function (index, item) {
+        $("#txtMaked").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+
+    GetAssetType('ModelTelecom');
+    GetAssetType('StockStatusTelecom');
+    GetAssetType('DevicelifeTelecom');
+    GetSubMinorCategory('', 'Telecom');
+}
+
+function GetModelTelecomSuccesses(msg) {
+    $("#txtModeled option").remove();
+    $.each(msg, function (index, item) {
+        $("#txtModeled").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+}
+
+function GetStockStatusTelecomSuccesses(msg) {
+    $("#txtStockStatuss option").remove();
+    $("#txtStockStatuss").append("<option value='0'></option>");
+    $.each(msg, function (index, item) {
+        $("#txtStockStatuss").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+    //  document.getElementById("txtStockStatuss").insertBefore(new Option('', '0'), document.getElementById("txtStockStatuss").firstChild);
+}
+
+function GetDevicelifeSuccesses(msg) {
+    $("#txtDevicelife option").remove();
+    $("#txtDevicelife").append("<option value='0'></option>");
+    $.each(msg, function (index, item) {
+        $("#txtDevicelife").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+    //  document.getElementById("txtDevicelife").insertBefore(new Option('', '0'), document.getElementById("txtDevicelife").firstChild);
+}
+
+function GetNetwkSubMinorCategorySuccesses(msg) {
+    $("#netwkSubMinorCat option").remove();
+    $.each(msg, function (index, item) {
+        $("#netwkSubMinorCat").append(
+        $('<option></option>').val(item.ID).html(item.Name));
+    });
+
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Network', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'Edit', InventoryID: $('#hdnInventoryId').val() };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ViewInventory?chunk=' + 0;
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['successCallbackFunction'] = SuccesGetNetworkInventory;
+   // debugger;
+    doAjax(params);
+    // document.getElementById("netwkSubMinorCat").insertBefore(new Option('', '0'), document.getElementById("netwkSubMinorCat").firstChild);
+}
+
+function GetDeskSubMinorCategorySuccesses(msg) {
+    $("#deskSubMinorCat option").remove();
+
+    $.each(msg, function (index, item) {
+        $("#deskSubMinorCat").append(
+        $('<option></option>').val(item.ID).html(item.Name));
+    });
+
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Desktop', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'Edit', InventoryID: $('#hdnInventoryId').val() };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ViewInventory?chunk=' + 0;
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['successCallbackFunction'] = SuccesGetDesktopInventory;
+  //  debugger;
+    doAjax(params);
+    // document.getElementById("deskSubMinorCat").insertBefore(new Option('', '0'), document.getElementById("deskSubMinorCat").firstChild);
+}
+
+
+function GetLapSubMinorCategorySuccesses(msg) {
+    $("#lapSubMinorCat option").remove();
+
+    $.each(msg, function (index, item) {
+        $("#lapSubMinorCat").append(
+        $('<option></option>').val(item.ID).html(item.Name));
+    });
+
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Laptop', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'Edit', InventoryID: $('#hdnInventoryId').val() };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ViewInventory?chunk=' + 0;
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['successCallbackFunction'] = SuccesGetLaptopInventory;
+   // debugger;
+    doAjax(params);
+    // document.getElementById("lapSubMinorCat").insertBefore(new Option('', '0'), document.getElementById("lapSubMinorCat").firstChild);
+}
+
+
+function GetSerSubMinorCategorySuccesses(msg) {
+    $("#servSubMinorCat option").remove();
+
+    $.each(msg, function (index, item) {
+        $("#servSubMinorCat").append(
+        $('<option></option>').val(item.ID).html(item.Name));
+    });
+    //  document.getElementById("servSubMinorCat").insertBefore(new Option('', '0'), document.getElementById("servSubMinorCat").firstChild);
+
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Server', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'Edit', InventoryID: $("#hdnInventoryId").val() };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ViewInventory?chunk=' + 0;
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['successCallbackFunction'] = SuccesGetServerInventory;
+   // debugger;
+    doAjax(params);
+}
+
+
+function GetTelSubMinorCategorySuccesses(msg) {
+    $("#telSubMinorCat option").remove();
+
+    $.each(msg, function (index, item) {
+        $("#telSubMinorCat").append(
+        $('<option></option>').val(item.ID).html(item.Name));
+    });
+
+
+    var searchText = {
+        PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Telecom', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'Edit', InventoryID: $('#hdnInventoryId').val()
+    };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ViewInventory?chunk=' + 0;
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['successCallbackFunction'] = SuccesGetTelecomInventory;
+   // debugger;
+    doAjax(params);
+    // document.getElementById("telSubMinorCat").insertBefore(new Option('', '0'), document.getElementById("telSubMinorCat").firstChild);
+}
+
+
+//$("#lblLaptopTrail").click(function () {
+
+//    GetLaptopAuditTrailData();
+//});
+
+//Start - Infra Inventory P2 Changes
+
+
+function GetInfraSubMinorCategorySuccesses(msg) {
+    $("#ddlInfraSubMinorCat option").remove();
+
+    $.each(msg, function (index, item) {
+        $("#ddlInfraSubMinorCat").append(
+        $('<option></option>').val(item.ID).html(item.Name));
+    });
+
+
+    var searchText = {
+        PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Infra', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'Edit', InventoryID: $('#hdnInventoryId').val()
+    };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ViewInventory?chunk=' + 0;
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['successCallbackFunction'] = SuccesGetInfraInventory;
+   // debugger;
+    doAjax(params);
+}
+
+function GetMakeInfraSuccesses(msg) {
+    $("#ddlMakes option").remove();
+
+    $.each(msg, function (index, item) {
+        $("#ddlMakes").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+
+    GetAssetType('ModelInfra');
+    GetAssetType('HostNameInfra');
+    GetAssetType('StockStatusInfra');
+    GetAssetType('DeviceSupportInfra');
+    GetAssetType('SharedDedicatedInfra');
+    GetAssetType('InventoryAssetTypeInfra');
+    GetSubMinorCategory('', 'Infra');
+}
+
+function GetModelInfraSuccesses(msg) {
+    $("#ddlModel option").remove();
+
+    $.each(msg, function (index, item) {
+        $("#ddlModel").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+}
+
+
+function GetHostNameInfraSuccesses(msg) {
+    $("#ddlInfraHostName option").remove();
+    $("#ddlInfraHostName").append('<option value="0"></option>');
+    $.each(msg, function (index, item) {
+        $("#ddlInfraHostName").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+}
+
+function GetStockStatusInfraSuccesses(msg) {
+    $("#ddlInfraStockstatus option").remove();
+
+    $("#ddlInfraStockstatus").append('<option value="0"></option>');
+    $.each(msg, function (index, item) {
+        $("#ddlInfraStockstatus").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+}
+
+function GetDeviceSupportInfraSuccesses(msg) {
+    $("#ddlInfraDeviceSupport option").remove();
+
+    $("#ddlInfraDeviceSupport").append('<option value="0"></option>');
+    $.each(msg, function (index, item) {
+        $("#ddlInfraDeviceSupport").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+}
+
+function GetSharedDedicatedInfraSuccesses(msg) {
+    $("#ddlInfraSharedDedicated option").remove();
+
+    $("#ddlInfraSharedDedicated").append('<option value="0"></option>');
+    $.each(msg, function (index, item) {
+        $("#ddlInfraSharedDedicated").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+}
+
+function GetInventoryAssetTypeInfraSuccesses(msg) {
+    $("#ddlInfraInventoryAssetType option").remove();
+
+    $("#ddlInfraInventoryAssetType").append('<option value="0"></option>');
+    $.each(msg, function (index, item) {
+        $("#ddlInfraInventoryAssetType").append(
+        $('<option></option>').val(item.ParameterValueID).html(item.ParameterValue));
+    });
+}
+//End - Infra Inventory P2 Changes
+
+//START Laptop Edit
+function operateFormatterLaptopTrail(value, row, index) {
+    var str = '';
+    //if (row.IsAssetRetired == 'No') {
+    str = '<button type="button" class="btn btn-floating btn-primary btn-xs"  data-placement="top" data-target="#ModalLaptopTrail" data-toggle="modal" data-original-title="Laptop Audit Trail" ><i class="fa fa-eye" aria-hidden="true"></i></button>'
+    //}
+    //else {
+    //    str = ''   class="icon wb-pencil"
+    //}
+    return [
+        str
+    ].join('');
+}
+window.operateEventsLaptopTrail = {
+    'click .btn-primary': function (e, value, row, index) {
+        $('#hdnInventoryId').val(row.InventoryID);
+        $('#hdnInventoryTypeId').val(row.InventoryTypeID);
+        $('#hdnAssetValidationStatusID').val(row.AssetValidationStatusID);
+        var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Laptop', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View', InventoryID: row.InventoryID };
+        var params = $.extend({}, doAjax_params_default);
+        params['url'] = 'ViewInventory/GetLaptopAuditTrail';
+        params['requestType'] = "POST";
+        params['contentType'] = "application/json";
+        params['data'] = searchText;
+        params['successCallbackFunction'] = OnSuccessGetLaptopAuditTrailData;
+       // debugger;
+        doAjax(params);
+    },
+};
+//END Laptop Edit
+//function GetLaptopAuditTrailData() {
+
+//    InvType = "Laptop";
+//    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: InvType, SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View' };
+//    var params = $.extend({}, doAjax_params_default);
+//    params['url'] = 'ViewInventory/GetLaptopAuditTrail';
+//    params['requestType'] = "POST";
+//    params['contentType'] = "application/json";
+//    params['data'] = searchText;
+//    params['successCallbackFunction'] = OnSuccessGetLaptopAuditTrailData;
+//    doAjax(params);
+
+//}
+function OnSuccessGetLaptopAuditTrailData(data) {
+
+    if (data.dtLaptopAuditTrail != null) {
+        $('#tblLaptopTrail').bootstrapTable('destroy');
+        $('#tblLaptopTrail').bootstrapTable({
+            data: data.dtLaptopAuditTrail
+           , exportOptions: {
+               "fileName": 'Laptop Audit Trail'
+           }
+        });
+    }
+    else {
+        $('#tblLaptopTrail').bootstrapTable('destroy');
+        $('#tblLaptopTrail').bootstrapTable({
+            data: []
+             , exportOptions: {
+                 "fileName": 'Laptop Audit Trail'
+             }
+        });
+    }
+    $('#ImgLoadingm').hide();
+
+}
+
+function GetSubMinorCategory(ParameterDescr, type) {
+
+    var searchText = { ParameterDescr: ParameterDescr };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/GetSubMinorCategory';
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    //START Common for Sub Minor Category
+
+
+    if (type == 'Network')
+        params['successCallbackFunction'] = GetNetwkSubMinorCategorySuccesses;
+    else if (type == 'Desktop')
+        params['successCallbackFunction'] = GetDeskSubMinorCategorySuccesses;
+    else if (type == 'Laptop')
+        params['successCallbackFunction'] = GetLapSubMinorCategorySuccesses;
+    else if (type == 'Server')
+        params['successCallbackFunction'] = GetSerSubMinorCategorySuccesses;
+    else if (type == 'Telecom')
+        params['successCallbackFunction'] = GetTelSubMinorCategorySuccesses;
+
+        //Start - Infra Inventory P2 Changes
+    else if (type == 'Infra')
+        params['successCallbackFunction'] = GetInfraSubMinorCategorySuccesses;
+    //End - Infra Inventory P2 Changes
+
+    //END Common for Sub Minor Category
+
+    doAjax(params);
+}
+
+//Excel Desktop
+function ExportToExcelDesktopInventory() {
+    // alert('ExportToExcelDesktopInventory');
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Desktop', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View' };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ExportToExcelInventory';
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['beforeSendCallbackFunction'] = function beforeSendcallbackfun() { $('#ImgLoadingliDesk').show(); $('#btnDesktopExportToExcell').attr('disabled', 'disabled'); };
+    params['successCallbackFunction'] = DownloadInventory;
+    doAjax(params);
+}
+
+//Excel Laptop
+function ExportToExcelLaptopInventory() {
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Laptop', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View' };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ExportToExcelInventory';
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['beforeSendCallbackFunction'] = function beforeSendcallbackfun() { $('#ImgLoadingliLap').show(); $('#btnLaptopExportToExcell').attr('disabled', 'disabled'); };
+    params['successCallbackFunction'] = DownloadInventory;
+    doAjax(params);
+}
+
+//Excel Network
+function ExportToExcelNetworkInventory() {
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Network', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View' };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ExportToExcelInventory';
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['beforeSendCallbackFunction'] = function beforeSendcallbackfun() { $('#ImgLoadingliNw').show(); $('#btnNetworkExportToExcell').attr('disabled', 'disabled'); };
+    params['successCallbackFunction'] = DownloadInventory;
+    doAjax(params);
+}
+
+//Excel Server
+function ExportToExcelServerInventory() {
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Server', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View' };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ExportToExcelInventory';
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['beforeSendCallbackFunction'] = function beforeSendcallbackfun() { $('#ImgLoadingliSer').show(); $('#btnServerExportToExcell').attr('disabled', 'disabled'); };
+    params['successCallbackFunction'] = DownloadInventory;
+    //debugger;ger;
+    doAjax(params);
+}
+
+// Excel Telecom
+function ExportToExcelTelecomInventory() {
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Telecom', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View' };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ExportToExcelInventory';
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['beforeSendCallbackFunction'] = function beforeSendcallbackfun() { $('#ImgLoadingliTel').show(); $('#btnTelecomExportToExcell').attr('disabled', 'disabled'); };
+    params['successCallbackFunction'] = DownloadInventory;
+    //debugger;ger;
+    doAjax(params);
+}
+
+//Excel Infra
+function ExportToExcelInfraInventory() {
+    var searchText = { PoNumber: $.trim($("#hdnPonumber").val()), InvType: 'Infra', SerialNumber: $("#txtSerialNumber").val(), TAGNumber: $("#txtTagNumber").val(), Location: $('#lstLocation').val(), AssetTypeID: $("#lstAssetType").val(), Mode: 'View' };
+    var params = $.extend({}, doAjax_params_default);
+    params['url'] = 'ViewInventory/ExportToExcelInventory';
+    params['requestType'] = "POST";
+    params['contentType'] = "application/json";
+    params['data'] = searchText;
+    params['beforeSendCallbackFunction'] = function beforeSendcallbackfun() { $('#ImgLoadingliInfra').show(); $('#btnInfraExportToExcell').attr('disabled', 'disabled'); };
+    params['successCallbackFunction'] = DownloadInventory;
+    //debugger;ger;
+    doAjax(params);
+}
+
+
+function DownloadInventory(msg) {
+    // alert('a');
+    var imagelaoder = $('#ImgLoadingm');
+
+    if (msg.indexOf("DesktopDetailType") >= 0)
+    { imagelaoder = $('#ImgLoadingliDesk'); $('#btnDesktopExportToExcell').removeAttr('disabled'); }
+    if (msg.indexOf("LaptopDetailType") >= 0)
+    { imagelaoder = $('#ImgLoadingliLap'); $('#btnLaptopExportToExcell').removeAttr('disabled'); }
+    if (msg.indexOf("NetworkDetailType") >= 0)
+    { imagelaoder = $('#ImgLoadingliNw'); $('#btnNetworkExportToExcell').removeAttr('disabled'); }
+    if (msg.indexOf("ServerDetailType") >= 0)
+    { imagelaoder = $('#ImgLoadingliSer'); $('#btnServerExportToExcell').removeAttr('disabled'); }
+    if (msg.indexOf("TelecomeDetailType") >= 0)
+    { imagelaoder = $('#ImgLoadingliTel'); $('#btnTelecomExportToExcell').removeAttr('disabled'); }
+    if (msg.indexOf("InfraDetailType") >= 0)
+    { imagelaoder = $('#ImgLoadingliInfra'); $('#btnInfraExportToExcell').removeAttr('disabled'); }
+
+    // alert('b');
+    window.location.href = apiUrl.replace("/FAR/", "/") + "Resources/Templates/" + msg;
+    $(imagelaoder).hide();
+
+}
+
+
+
+
+
