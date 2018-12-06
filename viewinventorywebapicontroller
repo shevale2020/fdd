@@ -1,0 +1,746 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web.Http;
+using Wns.Sdg.Product.FAR.BusinessFacade;
+using Wns.Sdg.Product.FAR.BusinessFacade.Interface;
+using Wns.Sdg.Product.FAR.Entity;
+using System.Web.Http.Cors;
+using Wns.Sdg.Product.FAR.Shared;
+using System.Web.Script.Serialization;
+using Wns.Sdg.Product.FAR.Shared.Message;
+using Wns.Sdg.Product.FAR.Shared.MessageConstants;
+using System.IO;
+using OfficeOpenXml;
+using System.Data;
+using Newtonsoft.Json;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Runtime.Caching;
+
+namespace Wns.Sdg.Product.FAR.WebApi.Controllers
+{
+    [EnableCors(origins: "*", headers: "*", methods: "*")]
+    public class ViewInventoryController : ApiController
+    {
+        string FARSalt = System.Web.Configuration.WebConfigurationManager.AppSettings["FARSalt"];
+        private static readonly Object tickObj = new Object();
+
+        [AcceptVerbs("GET", "POST")]
+        [Route("FAR/ViewInventory/GetPONumber")]
+        public List<string> GetPONumber([FromBody] InventoryEntity prefixText)
+        {
+            List<string> InventoryResult = new List<string>();
+            try
+            {
+                SessionData requestSessionData = new SessionData();
+                var headers = Request.Headers;
+
+
+                if (headers.Contains("Authorization"))
+                {
+                    string authenticationHeaderVal = headers.GetValues("Authorization").First();
+                    string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+                    SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+                    IInventoryFacade objIManageInventoryFacade = new InventoryFacade();
+                    InventoryResult = objIManageInventoryFacade.GetPONumber(prefixText.PoNumber);
+                }
+            }
+            catch (Exception ex)
+            {
+                //LogUtil.SaveMessage(Convert.ToString(user.RecCreatedBy), ex);
+            }
+            return InventoryResult;
+        }
+
+
+        [AcceptVerbs("GET", "POST")]
+        [Route("FAR/ViewInventory/GetParameterdesc")]
+        public List<ParameterValues> GetParameterdesc([FromBody] ParameterValues Parameter)
+        {
+            List<ParameterValues> InventoryResult = new List<ParameterValues>();
+            try
+            {
+                SessionData requestSessionData = new SessionData();
+                var headers = Request.Headers;
+
+
+                if (headers.Contains("Authorization"))
+                {
+                    string authenticationHeaderVal = headers.GetValues("Authorization").First();
+                    string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+
+                    SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+                    Parameter.Emplid = Convert.ToString(sessionData.EmplId);
+                    Parameter.UserID = Convert.ToString(sessionData.UserID);
+                    Parameter.RoleID = Convert.ToString(sessionData.RoleID);
+
+                    IViewInventoryFacade objIManageInventoryFacade = new ViewInventoryFacade();
+                    InventoryResult = objIManageInventoryFacade.GetParameterdesc(Parameter);
+                }
+            }
+            catch (Exception ex)
+            {
+                //LogUtil.SaveMessage(Convert.ToString(user.RecCreatedBy), ex);
+            }
+            return InventoryResult;
+        }
+
+
+        [AcceptVerbs("GET", "POST")]
+        [Route("FAR/ViewInventory/ViewInventory")]
+
+        //public InventoryEntity ViewInventory([FromBody] InventoryEntity InventoryDetails)
+        public string ViewInventory([FromBody] InventoryEntity InventoryDetails, int chunk)
+        {
+            InventoryEntity InventoryResult = new InventoryEntity();
+            //string result = "";
+            // JavaScriptSerializer jsSerializer = new JavaScriptSerializer();
+            // string JSONString = string.Empty;
+            try
+            {
+                SessionData requestSessionData = new SessionData();
+                var headers = Request.Headers;
+
+                if (headers.Contains("Authorization"))
+                {
+                    string authenticationHeaderVal = headers.GetValues("Authorization").First();
+                    string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+                    SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+                    InventoryDetails.Emplid = Convert.ToInt64(sessionData.EmplId);
+                    InventoryDetails.UserID = Convert.ToInt64(sessionData.UserID);
+                    InventoryDetails.RoleID = Convert.ToInt32(sessionData.RoleID);
+
+                    IViewInventoryFacade objIManageInventoryFacade = new ViewInventoryFacade();
+                    if (chunk == 0)
+                    {
+                        InventoryResult = objIManageInventoryFacade.ViewInventory(InventoryDetails);
+
+                    }
+
+                    if (InventoryDetails.InvType == "Desktop")
+                    {
+                        #region Chunk code
+                        MemoryCache cacheObj = MemoryCache.Default;
+                        MemoryCache cacheObj1 = MemoryCache.Default;
+                        MemoryCache cacheObj2 = MemoryCache.Default;
+
+                        if (chunk == 0 && InventoryResult.dtInventoryDesktopDetailEntity != null)
+                        {
+                            long totalcount = InventoryResult.dtInventoryDesktopDetailEntity.Rows.Count;
+                            double chunkcount = (double)totalcount / 4;
+                            chunkcount = (int)Math.Ceiling(chunkcount);
+                            //chunkcount = Math.Round(chunkcount, 0, MidpointRounding.AwayFromZero);
+                            List<DataTable> splitdt = SplitTable(InventoryResult.dtInventoryDesktopDetailEntity, Convert.ToInt32(chunkcount), totalcount);
+
+                            int count = splitdt.Count;
+
+                            if (count > 0)
+                            {
+                                if (count == 4)
+                                {
+                                    cacheObj.Add("Chunk", splitdt[1], null);
+                                    cacheObj1.Add("Chunk1", splitdt[2], null);
+                                    cacheObj2.Add("Chunk2", splitdt[3], null);
+                                }
+
+                                if (count == 3)
+                                {
+                                    cacheObj.Add("Chunk", splitdt[1], null);
+                                    cacheObj1.Add("Chunk1", splitdt[2], null);
+                                }
+
+                                if (count == 2)
+                                {
+                                    cacheObj.Add("Chunk", splitdt[1], null);
+                                }
+
+                                // donr cache 1st chunk just pass the 1st chunk to requester
+                                InventoryResult.dtInventoryDesktopDetailEntity = splitdt[chunk];
+                            }
+                        }
+
+                        if (chunk == 1)
+                        {
+                            if (cacheObj["Chunk"] != null)
+                            {
+                                DataTable dt = (DataTable)cacheObj["Chunk"];
+                                //dt = (DataTable)cacheObj["Chunk"];
+                                if (dt != null && dt.Rows.Count >= 0)
+                                    InventoryResult.dtInventoryDesktopDetailEntity = dt;//(DataTable)cacheObj["Chunk"];//splitdt[chunk];
+                                if (cacheObj["Chunk"] != null)
+                                    cacheObj.Remove("Chunk");
+                                //  dt.Clear();
+                            }
+
+                        }
+                        if (chunk == 2)
+                        {
+                            if (cacheObj1["Chunk1"] != null)
+                            {
+                                DataTable dt = (DataTable)cacheObj1["Chunk1"];
+                                if (dt != null && dt.Rows.Count >= 0)
+                                    InventoryResult.dtInventoryDesktopDetailEntity = dt;//(DataTable)cacheObj["Chunk"];//splitdt[chunk];
+                                if (cacheObj1["Chunk1"] != null)
+                                    cacheObj1.Remove("Chunk1");
+                                //dt.Clear();
+                            }
+                        }
+                        if (chunk == 3)
+                        {
+                            if (cacheObj2["Chunk2"] != null)
+                            {
+                                DataTable dt = (DataTable)cacheObj2["Chunk2"];
+                                if (dt != null && dt.Rows.Count >= 0)
+                                    InventoryResult.dtInventoryDesktopDetailEntity = dt;//(DataTable)cacheObj["Chunk"];//splitdt[chunk];
+                                if (cacheObj2["Chunk2"] != null)
+                                    cacheObj2.Remove("Chunk2");
+                                // dt.Clear();
+                            }
+                        }
+                        #endregion
+                    }
+
+                    string Result = JsonConvert.SerializeObject(InventoryResult, Formatting.None, new JsonSerializerSettings()
+                    {
+                        ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
+                    });
+
+                    // return  Content(list, "application/json");
+
+                    return Result;
+                }
+                else
+                {
+                    return string.Empty;
+                }
+            }
+            catch (Exception ex)
+            {
+                //LogUtil.SaveMessage(Convert.ToString(user.RecCreatedBy), ex);
+                string message = ex.Message;
+                return string.Empty;
+            }
+        }
+
+        [AcceptVerbs("GET", "POST")]
+        [Route("FAR/ViewInventory/GetLaptopAuditTrail")]
+        public InventoryEntity GetLaptopAuditTrail([FromBody] InventoryEntity InventoryDetails)
+        {
+            InventoryEntity InventoryResult = new InventoryEntity();
+            try
+            {
+                SessionData requestSessionData = new SessionData();
+                var headers = Request.Headers;
+
+
+                if (headers.Contains("Authorization"))
+                {
+                    string authenticationHeaderVal = headers.GetValues("Authorization").First();
+                    string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+                    SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+                    InventoryDetails.Emplid = Convert.ToInt64(sessionData.EmplId);
+                    InventoryDetails.UserID = Convert.ToInt64(sessionData.UserID);
+                    InventoryDetails.RoleID = Convert.ToInt32(sessionData.RoleID);
+
+                    IViewInventoryFacade objIManageInventoryFacade = new ViewInventoryFacade();
+                    InventoryResult = objIManageInventoryFacade.GetLaptopAuditTrail(InventoryDetails);
+                }
+            }
+            catch (Exception ex)
+            {
+                //LogUtil.SaveMessage(Convert.ToString(user.RecCreatedBy), ex);
+            }
+            return InventoryResult;
+        }
+
+        [AcceptVerbs("GET", "POST")]
+        [Route("FAR/ViewInventory/EditInventoryDesktop")]
+        public InventoryEntity EditInventoryDesktop([FromBody] InventoryEntity objInventoryEntity)
+        {
+
+            InventoryEntity InventoryResult = new InventoryEntity();
+            try
+            {
+                SessionData requestSessionData = new SessionData();
+                var headers = Request.Headers;
+
+
+                if (headers.Contains("Authorization"))
+                {
+                    string authenticationHeaderVal = headers.GetValues("Authorization").First();
+                    string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+                    SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+                    objInventoryEntity.Emplid = Convert.ToInt64(sessionData.EmplId);
+                    objInventoryEntity.RoleID = Convert.ToInt32(sessionData.RoleID);
+                    objInventoryEntity.UserID = Convert.ToInt64(sessionData.UserID);
+                    IViewInventoryFacade objIManageInventoryFacade = new ViewInventoryFacade();
+                    InventoryResult = objIManageInventoryFacade.EditInventoryDesktop(objInventoryEntity);
+                }
+            }
+            catch (Exception ex)
+            {
+                InventoryResult.Msg = MessageDescriptionConstant.GetMessageForMessageId(MessageIdConstants.InternalError2502);
+                InventoryResult.ResponseType = (UInt16)FAREnums.ResponseType.error;
+                LogUtil.SaveMessage(Convert.ToString(InventoryResult.UserID), ex);
+            }
+            return InventoryResult;
+        }
+
+        //[AcceptVerbs("GET", "POST")]
+        //[Route("FAR/ViewInventory/EditInventoryLaptop")]
+        //public InventoryLaptopDetailEntity EditInventoryLaptop([FromBody] InventoryLaptopDetailEntity lstInventoryLaptopDetailEntity)
+        //{
+        //    InventoryLaptopDetailEntity InventoryResult = new InventoryLaptopDetailEntity();
+        //    try
+        //    {
+        //        SessionData requestSessionData = new SessionData();
+        //        var headers = Request.Headers;
+
+
+        //        if (headers.Contains("Authorization"))
+        //        {
+        //            string authenticationHeaderVal = headers.GetValues("Authorization").First();
+        //            string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+        //            SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+        //            IViewInventoryFacade objIManageInventoryFacade = new ViewInventoryFacade();
+        //            InventoryResult = objIManageInventoryFacade.EditInventoryLaptop(lstInventoryLaptopDetailEntity);
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        //LogUtil.SaveMessage(Convert.ToString(user.RecCreatedBy), ex);
+        //    }
+        //    return InventoryResult;
+        //}
+
+        //[AcceptVerbs("GET", "POST")]
+        //[Route("FAR/ViewInventory/EditInventoryNetwork")]
+        //public InventoryNetworkDetailEntity EditInventoryNetwork([FromBody] InventoryNetworkDetailEntity lstInventoryNetworkDetailEntity)
+        //{
+        //    InventoryNetworkDetailEntity InventoryResult = new InventoryNetworkDetailEntity();
+        //    try
+        //    {
+        //        SessionData requestSessionData = new SessionData();
+        //        var headers = Request.Headers;
+
+
+        //        if (headers.Contains("Authorization"))
+        //        {
+        //            string authenticationHeaderVal = headers.GetValues("Authorization").First();
+        //            string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+        //            SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+        //            IViewInventoryFacade objIManageInventoryFacade = new ViewInventoryFacade();
+        //            InventoryResult = objIManageInventoryFacade.EditInventoryNetwork(lstInventoryNetworkDetailEntity);
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        //LogUtil.SaveMessage(Convert.ToString(user.RecCreatedBy), ex);
+        //    }
+        //    return InventoryResult;
+        //}
+
+        //[AcceptVerbs("GET", "POST")]
+        //[Route("FAR/ViewInventory/EditInventoryServer")]
+        //public InventoryServerDetailEntity EditInventoryServer([FromBody] InventoryServerDetailEntity lstInventoryServerDetailEntity)
+        //{
+        //    InventoryServerDetailEntity InventoryResult = new InventoryServerDetailEntity();
+        //    try
+        //    {
+        //        SessionData requestSessionData = new SessionData();
+        //        var headers = Request.Headers;
+
+
+        //        if (headers.Contains("Authorization"))
+        //        {
+        //            string authenticationHeaderVal = headers.GetValues("Authorization").First();
+        //            string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+        //            SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+        //            IViewInventoryFacade objIManageInventoryFacade = new ViewInventoryFacade();
+        //            InventoryResult = objIManageInventoryFacade.EditInventoryServer(lstInventoryServerDetailEntity);
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        //LogUtil.SaveMessage(Convert.ToString(user.RecCreatedBy), ex);
+        //    }
+        //    return InventoryResult;
+        //}
+
+        //[AcceptVerbs("GET", "POST")]
+        //[Route("FAR/ViewInventory/EditInventoryTelecom")]
+        //public InventoryTelecomDetailEntity EditInventoryTelecom([FromBody] InventoryTelecomDetailEntity lstInventoryTelecomDetailEntity)
+        //{
+        //    InventoryTelecomDetailEntity InventoryResult = new InventoryTelecomDetailEntity();
+        //    try
+        //    {
+        //        SessionData requestSessionData = new SessionData();
+        //        var headers = Request.Headers;
+
+
+        //        if (headers.Contains("Authorization"))
+        //        {
+        //            string authenticationHeaderVal = headers.GetValues("Authorization").First();
+        //            string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+        //            SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+        //            IViewInventoryFacade objIManageInventoryFacade = new ViewInventoryFacade();
+        //            InventoryResult = objIManageInventoryFacade.EditInventoryTelecom(lstInventoryTelecomDetailEntity);
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        //LogUtil.SaveMessage(Convert.ToString(user.RecCreatedBy), ex);
+        //    }
+        //    return InventoryResult;
+        //}
+
+        [AcceptVerbs("GET", "POST")]
+        [Route("FAR/ViewInventory/GetLocation")]
+        //  [HttpPost]
+        public List<InventoryEntity> GetLocation(InventoryEntity objInventoryEntity)
+        {
+            List<InventoryEntity> category_location = new List<InventoryEntity>();
+            try
+            {
+                SessionData requestSessionData = new SessionData();
+                var headers = Request.Headers;
+
+
+                if (headers.Contains("Authorization"))
+                {
+                    string authenticationHeaderVal = headers.GetValues("Authorization").First();
+                    string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+                    SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+                    objInventoryEntity.Emplid = Convert.ToInt64(sessionData.EmplId);
+                    objInventoryEntity.UserID = Convert.ToInt64(sessionData.UserID);
+                    objInventoryEntity.RoleID = Convert.ToInt32(sessionData.RoleID);
+
+                    IViewInventoryFacade objIManageInventoryFacade = new ViewInventoryFacade();
+                    category_location = objIManageInventoryFacade.GetLocation(objInventoryEntity);
+                }
+            }
+            catch (Exception ex)
+            {
+                //LogUtil.SaveMessage(Convert.ToString(user.RecCreatedBy), ex);
+            }
+            return category_location;
+        }
+
+
+        /// <summary>
+        /// Get SubMinor Category
+        /// </summary>
+        /// <param name="Parameter"></param>
+        /// <returns></returns>
+        [AcceptVerbs("GET", "POST")]
+        [Route("FAR/ViewInventory/GetSubMinorCategory")]
+        public List<ParameterValues> GetSubMinorCategory([FromBody] ParameterValues Parameter)
+        {
+            List<ParameterValues> InventoryResult = new List<ParameterValues>();
+            try
+            {
+                SessionData requestSessionData = new SessionData();
+                var headers = Request.Headers;
+
+
+                if (headers.Contains("Authorization"))
+                {
+                    string authenticationHeaderVal = headers.GetValues("Authorization").First();
+                    string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+
+                    SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+                    Parameter.Emplid = Convert.ToString(sessionData.EmplId);
+                    Parameter.UserID = Convert.ToString(sessionData.UserID);
+                    Parameter.RoleID = Convert.ToString(sessionData.RoleID);
+
+                    IViewInventoryFacade objIManageInventoryFacade = new ViewInventoryFacade();
+                    InventoryResult = objIManageInventoryFacade.GetSubMinorCategory(Parameter);
+                }
+            }
+            catch (Exception ex)
+            {
+                //LogUtil.SaveMessage(Convert.ToString(user.RecCreatedBy), ex);
+            }
+            return InventoryResult;
+        }
+
+        [AcceptVerbs("GET", "POST")]
+        [Route("FAR/ViewInventory/ExportToExcelInventory")]
+
+        public string ExportToExcelInventory([FromBody] InventoryEntity InventoryDetails)
+        {
+            InventoryEntity InventoryResult = new InventoryEntity();
+            string fileName = "", InventoryType = "";
+            try
+            {
+                SessionData requestSessionData = new SessionData();
+                var headers = Request.Headers;
+                ExcelPackage excel = new ExcelPackage();
+
+
+                if (headers.Contains("Authorization"))
+                {
+                    string authenticationHeaderVal = headers.GetValues("Authorization").First();
+                    string SessionData = EncryptionDecryptionStandard.DecryptionJsonByType(authenticationHeaderVal, FARSalt);
+                    SessionDataController sessionData = new JavaScriptSerializer().Deserialize<SessionDataController>(SessionData);
+
+                    InventoryDetails.Emplid = Convert.ToInt64(sessionData.EmplId);
+                    InventoryDetails.UserID = Convert.ToInt64(sessionData.UserID);
+                    InventoryDetails.RoleID = Convert.ToInt32(sessionData.RoleID);
+
+                    IViewInventoryFacade objIManageInventoryFacade = new ViewInventoryFacade();
+                    InventoryResult = objIManageInventoryFacade.ViewInventory(InventoryDetails);
+
+                    string errorPath = System.Web.Configuration.WebConfigurationManager.AppSettings["FileError"];
+                    string errorPathDes = System.Web.Configuration.WebConfigurationManager.AppSettings["FileSave"];
+                    // swati
+                    switch (InventoryDetails.InvType)
+                    {
+                        case "Desktop":
+
+                            InventoryType = "DesktopDetailType";
+
+                            break;
+                        case "Infra":
+
+                            InventoryType = "InfraDetailType";
+
+                            break;
+
+                        case "Laptop":
+
+                            InventoryType = "LaptopDetailType";
+
+                            break;
+
+                        case "Network":
+
+                            InventoryType = "NetworkDetailType";
+
+                            break;
+
+                        case "Server":
+
+                            InventoryType = "ServerDetailType";
+
+                            break;
+
+                        case "Telecom":
+
+                            InventoryType = "TelecomeDetailType";
+
+                            break;
+                    }
+
+                    lock (tickObj)
+                    {
+                        fileName = InventoryType + "_" + DateTime.UtcNow.Ticks + DateTime.Now.Millisecond + "_" + DateTime.Now.ToUniversalTime() + ".xlsx";
+                        fileName = fileName.Replace("/", "").Replace(":", "").Replace(" ", "");
+                        string despath = errorPathDes + fileName;
+
+                        File.Copy(errorPath, despath);
+                        FileInfo newFile = new FileInfo(despath);
+
+                        using (ExcelPackage pck = new ExcelPackage(newFile))
+                        {
+                            switch (InventoryDetails.InvType)
+                            {
+                                //Desktop 
+                                case "Desktop":
+
+                                    if (InventoryResult.dtInventoryDesktopDetailEntity != null)
+                                    {
+                                        if (InventoryResult.dtInventoryDesktopDetailEntity.Rows.Count > 0)
+                                        {
+
+                                            InventoryResult.dtInventoryDesktopDetailEntity.Columns.Remove("InventoryID");
+                                            InventoryResult.dtInventoryDesktopDetailEntity.Columns.Remove("InventoryTypeID");
+                                            InventoryResult.dtInventoryDesktopDetailEntity.Columns.Remove("MinorSubCategory");
+                                            InventoryResult.dtInventoryDesktopDetailEntity.Columns.Remove("AssetType");
+                                            InventoryResult.dtInventoryDesktopDetailEntity.Columns.Remove("AllocationTypeID");
+                                            InventoryResult.dtInventoryDesktopDetailEntity.Columns.Remove("AssetValidationStatusID");
+                                            InventoryResult.dtInventoryDesktopDetailEntity.Columns.Remove("SubLocation");
+
+
+                                            //ExcelWorksheet ws = pck.Workbook.Worksheets.Add("Desktop");
+                                            //ws.Cells["A1"].LoadFromDataTable(InventoryResult.dtInventoryDesktopDetailEntity, true);
+                                            //pck.Save();
+
+                                            ExcelWorksheet ws = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+                                            ws.Name = "Desktop";
+                                            ws.Cells["A1"].LoadFromDataTable(InventoryResult.dtInventoryDesktopDetailEntity, true);
+
+                                            //  pck.Workbook.Worksheets.Delete(worksheet);
+                                            pck.Save();
+                                        }
+                                    }
+                                    break;
+
+
+                                // Laptop
+                                case "Laptop":
+
+                                    if (InventoryResult.dtInventoryLaptopDetailEntity != null)
+                                    {
+                                        if (InventoryResult.dtInventoryLaptopDetailEntity.Rows.Count > 0)
+                                        {
+
+                                            InventoryResult.dtInventoryLaptopDetailEntity.Columns.Remove("InventoryID");
+                                            InventoryResult.dtInventoryLaptopDetailEntity.Columns.Remove("InventoryTypeID");
+
+                                            ExcelWorksheet ws = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+                                            ws.Name = "Laptop";
+                                            ws.Cells["A1"].LoadFromDataTable(InventoryResult.dtInventoryLaptopDetailEntity, true);
+                                            pck.Save();
+                                        }
+                                    }
+                                    break;
+
+                                case "Network":
+                                    // Network
+                                    if (InventoryResult.dtInventoryNetworkDetailEntity != null)
+                                    {
+                                        if (InventoryResult.dtInventoryNetworkDetailEntity.Rows.Count > 0)
+                                        {
+
+                                            InventoryResult.dtInventoryNetworkDetailEntity.Columns.Remove("InventoryID");
+                                            InventoryResult.dtInventoryNetworkDetailEntity.Columns.Remove("InventoryTypeID");
+
+                                            ExcelWorksheet ws = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+                                            ws.Name = "Network";
+                                            ws.Cells["A1"].LoadFromDataTable(InventoryResult.dtInventoryNetworkDetailEntity, true);
+                                            pck.Save();
+                                        }
+                                    }
+                                    break;
+
+                                case "Server":
+                                    // Server
+                                    if (InventoryResult.dtInventoryServerDetailEntity != null)
+                                    {
+                                        if (InventoryResult.dtInventoryServerDetailEntity.Rows.Count > 0)
+                                        {
+
+                                            InventoryResult.dtInventoryServerDetailEntity.Columns.Remove("InventoryID");
+                                            InventoryResult.dtInventoryServerDetailEntity.Columns.Remove("InventoryTypeID");
+
+                                            ExcelWorksheet ws = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+                                            ws.Name = "Server";
+                                            ws.Cells["A1"].LoadFromDataTable(InventoryResult.dtInventoryServerDetailEntity, true);
+                                            pck.Save();
+                                        }
+                                    }
+                                    break;
+
+                                // Telecom
+                                case "Telecom":
+
+                                    if (InventoryResult.dtInventoryTelecomDetailEntity != null)
+                                    {
+                                        if (InventoryResult.dtInventoryTelecomDetailEntity.Rows.Count > 0)
+                                        {
+                                            InventoryResult.dtInventoryTelecomDetailEntity.Columns.Remove("InventoryID");
+                                            InventoryResult.dtInventoryTelecomDetailEntity.Columns.Remove("InventoryTypeID");
+
+                                            ExcelWorksheet ws = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+                                            ws.Name = "Telecom";
+                                            ws.Cells["A1"].LoadFromDataTable(InventoryResult.dtInventoryTelecomDetailEntity, true);
+                                            pck.Save();
+                                        }
+                                    }
+                                    break;
+
+                                case "Infra":
+                                    // Infra
+                                    if (InventoryResult.dtInventoryInfraDetailEntity != null)
+                                    {
+                                        if (InventoryResult.dtInventoryInfraDetailEntity.Rows.Count > 0)
+                                        {
+                                            InventoryResult.dtInventoryInfraDetailEntity.Columns.Remove("InventoryID");
+                                            InventoryResult.dtInventoryInfraDetailEntity.Columns.Remove("InventoryTypeID");
+
+                                            ExcelWorksheet ws = pck.Workbook.Worksheets.SingleOrDefault(x => x.Name == "sheet1");
+                                            ws.Name = "Infra";
+                                            ws.Cells["A1"].LoadFromDataTable(InventoryResult.dtInventoryInfraDetailEntity, true);
+                                            pck.Save();
+                                        }
+                                    }
+                                    break;
+                            }
+
+                        }
+                    }
+                }
+            }
+
+            catch (Exception ex)
+            {
+                //LogUtil.SaveMessage(Convert.ToString(user.RecCreatedBy), ex);
+            }
+            return fileName;
+        }
+
+        private List<DataTable> SplitTable(DataTable originalTable, int batchSize, long totalcount)
+        {
+            List<DataTable> tables = new List<DataTable>();
+            int i = 0;
+            int j = 1;
+            long loopCount = totalcount;
+            bool stopTableCreation = false;
+
+            // long count = NoOfRecord;
+            DataTable newDt = originalTable.Clone();
+            newDt.TableName = "Table_" + j;
+            newDt.Clear();
+            foreach (DataRow row in originalTable.Rows)
+            {
+
+                DataRow newRow = newDt.NewRow();
+                newRow.ItemArray = row.ItemArray;
+                newDt.Rows.Add(newRow);
+                i++;
+                loopCount = loopCount - 1;
+                // NoOfRecord = NoOfRecord - i;
+
+                if (loopCount == 0 && stopTableCreation == false)
+                {
+                    stopTableCreation = true;
+                    tables.Add(newDt);
+                    j++;
+                    newDt = originalTable.Clone();
+                    newDt.TableName = "Table_" + j;
+                    newDt.Clear();
+                    i = 0;
+                }
+                else
+                {
+                    if (i == batchSize)
+                    {
+                        if (loopCount < batchSize)
+                        {
+                            stopTableCreation = false;
+                        }
+                        tables.Add(newDt);
+                        j++;
+                        newDt = originalTable.Clone();
+                        newDt.TableName = "Table_" + j;
+                        newDt.Clear();
+                        i = 0;
+                    }
+                }
+
+            }
+            return tables;
+        }
+    }
+}
+
