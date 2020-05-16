@@ -1,7 +1,0 @@
-
-						UPDATE #InventoryLaptopDetailTemp
-						SET error = isnull(error, '') + 'Invalid Tag'
-						from #InventoryLaptopDetailTemp temp 
-						left join tagtable tag on temp.tagnumer = tag.tagnumer where tag.tagnumber is null
-						
-						
